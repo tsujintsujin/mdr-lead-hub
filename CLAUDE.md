@@ -2,7 +2,7 @@
 
 A job-application demo for Marketing Done Right: two WordPress sites (Docker),
 n8n workflows (all the logic), a Next.js + SQLite CRM, wired to Google Sheets,
-Slack (workspace Group 10), Asana (Justin's personal workspace) and Brevo email.
+Slack (workspace MDR Demo), Asana (Justin's personal workspace) and Brevo email.
 Read `README.md` (how to run) and `BUILD-LOG.md` (every step and connection).
 
 Rules for this project:

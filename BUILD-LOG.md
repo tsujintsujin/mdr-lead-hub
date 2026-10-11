@@ -30,8 +30,10 @@ Built overnight 2026-10-11 → 2026-10-12.
 7. **Asana project "MDR Lead Follow-ups"** (board view) created through the
    API, with sections *Hot - call within 24h*, *Needs a conversation*,
    *Contacted*, *Booked*. n8n files a task per lead that needs a person.
-8. **Slack app "MDR Lead Hub"** (A0C8DB0RFMG) created from a JSON manifest in
-   Chrome and installed into Justin's workspace *Group 10*. Bot scopes:
+8. **Slack app "MDR Lead Hub"** (A0C8CP9GJB0) created from a JSON manifest in
+   Chrome and installed into its own workspace **MDR Demo** (T0C88FA7FA7),
+   created by Justin on 2026-10-12. (The first version lived in Justin's older
+   workspace *Group 10*, which has other members; its channels were archived.) Bot scopes:
    `chat:write`, `chat:write.public`, `channels:manage`, `channels:read`,
    `channels:join`, `users:read`. Interactivity (button clicks) points to
    `https://mdr-hooks.thejobstash.com/webhook/mdr-slack`. The signing secret is
