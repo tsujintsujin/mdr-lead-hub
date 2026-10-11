@@ -13,15 +13,17 @@ try {
 
 let chrome;
 // Hard cap so a slow site can't hold the visitor's results page; Chrome is closed either way.
-const timer = setTimeout(async () => { try { if (chrome) await chrome.kill(); } catch (_) {} out({ ok: false, error: 'timeout' }); }, 40000);
+const timer = setTimeout(async () => { try { if (chrome) await chrome.kill(); } catch (_) {} out({ ok: false, error: 'timeout' }); }, 55000);
 try {
   chrome = await chromeLauncher.launch({ chromeFlags: ['--headless=new', '--no-sandbox', '--disable-gpu'] });
-  const r = await lighthouse(url.href, { port: chrome.port, output: 'json', logLevel: 'error', onlyCategories: ['performance'], formFactor: 'mobile', maxWaitForLoad: 20000 });
+  const r = await lighthouse(url.href, { port: chrome.port, output: 'json', logLevel: 'error', onlyCategories: ['performance'], formFactor: 'mobile', maxWaitForLoad: 25000 });
   const lhr = r.lhr;
   const lcp = lhr.audits['largest-contentful-paint'];
   clearTimeout(timer);
   await chrome.kill();
-  out({ ok: true, score: Math.round((lhr.categories.performance.score || 0) * 100), lcp_s: lcp && lcp.numericValue ? Math.round(lcp.numericValue / 100) / 10 : null, final_url: lhr.finalDisplayedUrl || lhr.finalUrl });
+  const perf = lhr.categories.performance.score;
+  if (lhr.runtimeError || perf == null) out({ ok: false, error: (lhr.runtimeError && lhr.runtimeError.code) || 'no score' });
+  out({ ok: true, score: Math.round(perf * 100), lcp_s: lcp && lcp.numericValue ? Math.round(lcp.numericValue / 100) / 10 : null, final_url: lhr.finalDisplayedUrl || lhr.finalUrl });
 } catch (e) {
   clearTimeout(timer);
   try { if (chrome) await chrome.kill(); } catch (_) {}

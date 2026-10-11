@@ -8,11 +8,19 @@ const file = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db
 fs.mkdirSync(path.dirname(file), { recursive: true });
 
 const g = globalThis as unknown as { __crmDb?: DatabaseSync };
-export const db: DatabaseSync = g.__crmDb ?? new DatabaseSync(file);
-g.__crmDb = db;
 
-db.exec(`
-PRAGMA journal_mode = WAL;
+// Opened on first use, not at import: `next build` imports every route in parallel workers.
+function open(): DatabaseSync {
+  if (g.__crmDb) return g.__crmDb;
+  const d = new DatabaseSync(file);
+  d.exec("PRAGMA busy_timeout = 5000;");
+  d.exec(SCHEMA);
+  g.__crmDb = d;
+  return d;
+}
+export const db = new Proxy({} as DatabaseSync, { get: (_t, k) => { const d = open(); const v = (d as any)[k]; return typeof v === "function" ? v.bind(d) : v; } });
+
+const SCHEMA = `PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS leads (
@@ -74,7 +82,7 @@ CREATE TABLE IF NOT EXISTS corrections (
   note          TEXT,
   by            TEXT
 );
-`);
+`;
 
 export const now = () => new Date().toISOString();
 

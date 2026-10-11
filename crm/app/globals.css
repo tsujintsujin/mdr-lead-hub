@@ -94,6 +94,7 @@ table.leads { width: 100%; border-collapse: collapse; }
 .grid2 { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .card + .card { margin-top: 16px; }
+.grid3 > .card, .team > .card, .kpis > .kpi { margin-top: 0; }
 .card h2 { font-size: 14px; margin-bottom: 12px; color: var(--ink-2); font-weight: 600; }
 .read { font-size: 17px; line-height: 1.45; margin: 0 0 14px; }
 .reasons { margin: 0 0 16px; padding-left: 18px; color: var(--ink-2); }
@@ -165,5 +166,7 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   dl.facts dd { margin-bottom: 8px; }
   .filters input { min-width: 0; flex: 1 1 100%; }
   .bars .bar { grid-template-columns: 110px 1fr 30px; }
+  .leads td, .leads th { padding: 10px 8px; }
+  .biz { min-width: 150px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

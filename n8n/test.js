@@ -23,9 +23,9 @@ assert.equal(site.platform, 'WordPress'); assert.ok(site.https); assert.ok(site.
 
 // PageSpeed answer wins, estimate only when it's missing
 assert.deepEqual(L.speedFrom({ lighthouseResult: { categories: { performance: { score: 0.41 } }, audits: { 'largest-contentful-paint': { numericValue: 5230 } } } }, site), { score: 41, lcp_s: 5.2, source: 'pagespeed' });
-assert.equal(L.speedFrom(null, site).source, 'estimate');
+assert.equal(L.speedFrom(null, site).score, null, 'no Lighthouse result means no number, never a guess');
 assert.deepEqual(L.speedFrom({ ok: true, score: 62, lcp_s: 3.4 }, site), { score: 62, lcp_s: 3.4, source: 'lighthouse' });
-assert.equal(L.speedFrom({ ok: false, error: 'timeout' }, site).source, 'estimate');
+assert.equal(L.speedFrom({ ok: false, error: 'timeout' }, site).source, 'none');
 assert.equal(L.speedFrom(null, { reachable: false }).score, null);
 
 // a strong clinic lead
@@ -92,8 +92,14 @@ const s = M.slackLead(lead, { lib: L, crmUrl: 'http://localhost:3090/leads/MDR-1
 assert.equal(s.blocks.find((b) => b.type === 'actions').elements.length, 4);
 assert.equal(M.slackLead({ ...lead, stage: 'won' }, { lib: L, crmUrl: 'u', rep: roster[0] }).blocks.find((b) => b.type === 'actions'), undefined);
 assert.ok(M.repEmail(lead, { lib: L, rep: roster[0], crmUrl: 'u', siteName: 'Practice Growth Check' }).subject.includes('Hot lead for you'));
+assert.ok(M.repEmail({ ...lead, verdict: 'talk' }, { lib: L, rep: roster[0], crmUrl: 'u', siteName: 's' }).subject.includes('Worth a conversation for you'));
+assert.ok(M.prospectEmail({ ...lead, segment: 'home_services' }, { lib: L, rep: roster[0] }).html.includes('businesses like yours'));
 assert.ok(M.prospectEmail({ ...lead, verdict: 'not_fit' }, { lib: L, rep: roster[0] }).html.includes('retainer'));
 assert.ok(M.prospectEmail({ ...lead, variant: 'grant', fields: fGrant, audit: gAudit }, { lib: L, rep: roster[0] }).html.includes('likely eligible'));
 assert.ok(!M.repEmail({ ...lead, business: '<script>' }, { lib: L, rep: roster[0], crmUrl: 'u', siteName: 's' }).html.includes('<script>'));
 
+assert.equal(L.ageText(0.01), '1 minute');
+assert.equal(L.ageText(0.5), '30 minutes');
+assert.equal(L.ageText(26.04), '26 hours');
+assert.equal(L.decide('practice', fHot, { hard: 'spam', points: 0, notes: [] }, null).segment, 'other');
 console.log('n8n logic: all checks passed');

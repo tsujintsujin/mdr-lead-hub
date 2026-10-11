@@ -1,0 +1,213 @@
+{
+  "name": "MDR · Sheet helper",
+  "nodes": [
+    {
+      "id": "3f335de5-2744-7992-9f01-4dd1194dbe86",
+      "name": "Script asks",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mdr-sheet-helper",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "c6f0e297-4f57-92f3-bdf2-78ef7fa803f9"
+    },
+    {
+      "id": "0554a80b-e3d8-7912-9121-1ba22cc0b6c7",
+      "name": "Check the key and the target",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nconst SECRET = { hmac: '{{MDR_HMAC_SECRET}}', slack: '{{SLACK_SIGNING_SECRET}}', crm: '{{CRM_API_KEY}}' };\n\nconst crypto = require('crypto');\nconst h = $input.first().json.headers || {};\nconst got = String(h['x-mdr-key'] || '');\nconst ok = got.length === SECRET.crm.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(SECRET.crm));\n\nconst b = $input.first().json.body || {};\nconst allowed = typeof b.url === 'string' && b.url.startsWith('https://sheets.googleapis.com/v4/spreadsheets/' + CFG.sheetId);\nreturn [{ json: { ok: ok && allowed, body: $input.first().json.body || {}, query: $input.first().json.query || {}, response: ok ? { ok: true } : { ok: false, error: 'bad key' } } }];"
+      }
+    },
+    {
+      "id": "759bb571-09ef-2f88-412a-7475c229739f",
+      "name": "Allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3f07cd71-f360-dec3-6a5d-d0719d07c287",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9379b7a1-c1be-d27b-3a80-1463db832bda",
+      "name": "Google Sheets API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -200
+      ],
+      "parameters": {
+        "method": "={{ $json.body.method || 'POST' }}",
+        "url": "={{ $json.body.url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body.data || {}) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "M8QrX9oedUm6DHil",
+          "name": "Google Sheets TheJobStash"
+        }
+      }
+    },
+    {
+      "id": "3d71b1e1-0cfa-a0c8-e792-3c7081c3acf0",
+      "name": "Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nreturn [{ json: { response: $input.first().json } }];"
+      }
+    },
+    {
+      "id": "a62f534d-aee6-63dc-195b-b90353d47ad3",
+      "name": "Send it back",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "74514c88-f81a-06fa-8d52-eba66f778c4e",
+      "name": "Reply 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Script asks": {
+      "main": [
+        [
+          {
+            "node": "Check the key and the target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the key and the target": {
+      "main": [
+        [
+          {
+            "node": "Allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allowed?": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets API": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer": {
+      "main": [
+        [
+          {
+            "node": "Send it back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -43,7 +43,7 @@ export default function LeadActions({ id, stage, verdict, assignee, reps, sectio
 
   return (
     <div>
-      <form className="form-row" onSubmit={(e) => { e.preventDefault(); if (!v) return; start(async () => { done(await overrideVerdict(id, v, why), `Verdict changed to ${VERDICT_LABEL[v]}`); setWhy(""); }); }}>
+      <form className="form-row" onSubmit={(e) => { e.preventDefault(); if (!v) return; start(async () => { done(await overrideVerdict(id, v, why), `Verdict changed to ${VERDICT_LABEL[v]}`); setWhy(""); setV(""); }); }}>
         <label htmlFor="verdict">The AI said <strong>{verdict ? VERDICT_LABEL[verdict] : "nothing"}</strong>. It should be:</label>
         <select id="verdict" value={v} onChange={(e) => setV(e.target.value as Verdict)}>
           <option value="">Choose a verdict</option>
@@ -53,7 +53,7 @@ export default function LeadActions({ id, stage, verdict, assignee, reps, sectio
         <div><button className="btn btn-act" disabled={pending || !v}>Correct the verdict</button></div>
       </form>
       {reps.length > 0 && (
-        <form className="form-row" style={{ marginTop: 18 }} onSubmit={(e) => { e.preventDefault(); const r = reps.find((x) => x.name === rep); if (!r) return; start(async () => done(await reassign(id, r.name, r.email), `Handed to ${r.name}`)); }}>
+        <form className="form-row" style={{ marginTop: 18 }} onSubmit={(e) => { e.preventDefault(); const r = reps.find((x) => x.name === rep); if (!r) return; start(async () => { done(await reassign(id, r.name, r.email), `Handed to ${r.name}`); setRep(""); }); }}>
           <label htmlFor="rep">Owned by <strong>{assignee || "nobody"}</strong>. Hand it to:</label>
           <select id="rep" value={rep} onChange={(e) => setRep(e.target.value)}>
             <option value="">Choose a rep</option>

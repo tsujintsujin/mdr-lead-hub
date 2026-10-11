@@ -14,7 +14,7 @@ if [ "$W" -lt 600 ]; then
   WIN=600
 fi
 "/c/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --disable-gpu --hide-scrollbars \
-  --user-data-dir="$(cygpath -w "$LOCALAPPDATA/Temp/mdr-shot-profile")" --window-size="$WIN,$H" --virtual-time-budget=6000 \
+  --user-data-dir="$(cygpath -w "$LOCALAPPDATA/Temp/mdr-shot-profile")" --window-size="$WIN,$H" --virtual-time-budget=${SHOT_WAIT:-6000} \
   --screenshot="$(cygpath -w "$DIR/shots/$2.png")" "$TARGET" >/dev/null 2>&1
 if [ "$W" -lt 600 ]; then python -c "from PIL import Image; im=Image.open(r'$(cygpath -w "$DIR/shots/$2.png")'); im.crop((0,0,$W,$H)).save(r'$(cygpath -w "$DIR/shots/$2.png")')"; rm -f "$WRAP"; fi
 echo "shots/$2.png"

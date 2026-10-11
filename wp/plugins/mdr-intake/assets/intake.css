@@ -132,3 +132,4 @@
 @keyframes mdr-stamp { from { transform: rotate(-4deg) scale(1.8); opacity: 0; } to { transform: rotate(-4deg) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mdr-stamp { animation: none; } }
 .mdr-irs { margin: 1rem 0 0; font-weight: 600; }
+.mdr-results__title:focus { outline: none; }

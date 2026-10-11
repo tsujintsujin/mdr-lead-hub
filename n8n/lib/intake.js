@@ -74,7 +74,7 @@ const LIB = (() => {
     };
   }
 
-  /** Mobile speed: PageSpeed when it answered, otherwise a rough estimate from response time and page weight. */
+  /** Mobile speed from the local Lighthouse run (or a PageSpeed response). Never estimated. */
   function speedFrom(psi, site) {
     if (psi && psi.ok === true && typeof psi.score === 'number') return { score: psi.score, lcp_s: psi.lcp_s == null ? null : psi.lcp_s, source: 'lighthouse' };
     const cat = psi && psi.lighthouseResult && psi.lighthouseResult.categories && psi.lighthouseResult.categories.performance;
@@ -82,11 +82,8 @@ const LIB = (() => {
       const lcp = psi.lighthouseResult.audits && psi.lighthouseResult.audits['largest-contentful-paint'];
       return { score: Math.round(cat.score * 100), lcp_s: lcp && lcp.numericValue ? Math.round(lcp.numericValue / 100) / 10 : null, source: 'pagespeed' };
     }
-    if (!site || !site.reachable || !site.ms) return { score: null, lcp_s: null, source: 'none' };
-    // ponytail: crude estimate (server time + weight) only when PageSpeed is rate-limited; a real Lighthouse run replaces it.
-    const kb = site.bytes / 1024;
-    const est = Math.max(5, Math.min(95, Math.round(100 - site.ms / 40 - kb / 12)));
-    return { score: est, lcp_s: null, source: 'estimate' };
+    // No guessing: if Lighthouse didn't finish, the speed is reported as not measured.
+    return { score: null, lcp_s: null, source: 'none' };
   }
 
   function buildAudit(variant, f, site, speed, irs) {
@@ -271,12 +268,12 @@ const LIB = (() => {
   /* ---------- the verdict ---------- */
   function decide(variant, f, rule, ai) {
     const formSegment = variant === 'grant' ? 'nonprofit' : 'healthcare_wellness';
-    if (rule.hard === 'spam') return { verdict: 'spam', score: 0, by: 'rules', segment: formSegment, why: rule.notes };
+    if (rule.hard === 'spam') return { verdict: 'spam', score: 0, by: 'rules', segment: 'other', why: rule.notes };
     if (!ai) {
       // Model unavailable: rules alone, and a person looks at it.
       return { verdict: rule.hard || 'talk', score: rule.points, by: 'rules', segment: formSegment, why: [...rule.notes, 'The AI step did not answer, so a person should look at this one'] };
     }
-    if (ai.vendor_pitch) return { verdict: 'spam', score: 0, by: 'ai', segment: ai.segment, why: ['They are selling to MDR, not buying', ...ai.reasons] };
+    if (ai.vendor_pitch) return { verdict: 'spam', score: 0, by: 'ai', segment: 'other', why: ['They are selling to MDR, not buying', ...ai.reasons] };
     const score = Math.max(0, Math.min(100, rule.points + ai.intent));
     const why = [...ai.reasons, ...rule.notes].slice(0, 6);
     if (rule.hard === 'not_fit') return { verdict: 'not_fit', score, by: 'rules', segment: ai.segment, why };
@@ -305,8 +302,9 @@ const LIB = (() => {
   }
   const manager = (roster) => roster.find((r) => r.covers.includes('*')) || null;
   const firstName = (n) => String(n || '').split(' ')[0];
+  const ageText = (hours) => { if (hours >= 1) return (Math.round(hours * 10) / 10) + ' hours'; const m = Math.max(1, Math.round(hours * 60)); return m + (m === 1 ? ' minute' : ' minutes'); };
 
-  return { SEGMENTS, SEGMENT_LABEL, VERDICT_LABEL, VERDICT_EMOJI, LABELS, label, classifySource, readWebsite, speedFrom, buildAudit, publicResult, rules, zipBand, looksLikeGibberish, buildPrompt, describeLead, parseAi, decide, parseRoster, pickRep, manager, firstName, AI_SCHEMA };
+  return { SEGMENTS, SEGMENT_LABEL, VERDICT_LABEL, VERDICT_EMOJI, LABELS, label, classifySource, readWebsite, speedFrom, buildAudit, publicResult, rules, zipBand, looksLikeGibberish, buildPrompt, describeLead, parseAi, decide, parseRoster, pickRep, manager, firstName, ageText, AI_SCHEMA };
 })();
 
 if (typeof module !== 'undefined') module.exports = LIB;

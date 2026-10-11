@@ -9,6 +9,8 @@ const MSG = (() => {
     viewport: 'Works on phones', local_schema: 'Local business details for Google',
     irs: 'Found in IRS nonprofit records', site_https: 'Website loads on https', mission_content: 'Enough about the mission on the site', org_type: 'An organization type Google accepts',
   };
+  // Headline wording per verdict, used in Slack headers and email subjects.
+  const HEADLINE = { hot: 'Hot lead', warm: 'Warm lead', talk: 'Worth a conversation', not_fit: 'Not a fit', spam: 'Spam' };
   const STAMP = { likely: 'likely eligible', almost: 'almost there', not_yet: 'not eligible yet' };
   const band = (s) => (s == null ? 'we couldn’t measure it' : s >= 90 ? 'quick' : s >= 50 ? 'middling' : 'slow enough to lose people');
 
@@ -26,7 +28,7 @@ const MSG = (() => {
   function slackLead(L, x) {
     // L: lead fields; x: { lib, crmUrl, rep, status }
     const v = L.verdict;
-    const head = `${x.lib.VERDICT_EMOJI[v]} ${x.lib.VERDICT_LABEL[v]} lead: ${L.business}`;
+    const head = `${x.lib.VERDICT_EMOJI[v]} ${HEADLINE[v]}: ${L.business}`;
     const f = L.fields || {};
     const L2 = x.lib.label;
     const facts = L.variant === 'grant'
@@ -70,7 +72,7 @@ const MSG = (() => {
 
   function repEmail(L, x) {
     const f = L.fields || {};
-    const subj = `${x.lib.VERDICT_EMOJI[L.verdict]} ${x.lib.VERDICT_LABEL[L.verdict]} lead for you: ${L.business} (${L.score})`;
+    const subj = `${x.lib.VERDICT_EMOJI[L.verdict]} ${HEADLINE[L.verdict]} for you: ${L.business} (${L.score})`;
     const html = [
       p(`Hi ${esc(x.lib.firstName(x.rep.name))},`),
       p(`<strong>${esc(L.business)}</strong> just came through ${esc(x.siteName)}, and it’s landed on your desk.`),
@@ -125,10 +127,10 @@ const MSG = (() => {
     }
     return { subject, html: shell([
       p(`Hi ${first},`), p(`Thanks for running the checkup. Here’s the gist of what we saw on ${esc(String(f.website || '').replace(/^https?:\/\//, ''))}:`), results,
-      x.rep ? p(`${esc(x.rep.name)} works with clinics here at Marketing Done Right, and they’ll email you within one business day to go through it properly. Anything urgent? Just hit reply.`) : '', sign].join('')) };
+      x.rep ? p(`${esc(x.rep.name)} ${L.segment === 'healthcare_wellness' ? 'works with clinics' : 'looks after businesses like yours'} here at Marketing Done Right, and they’ll email you within one business day to go through it properly. Anything urgent? Just hit reply.`) : '', sign].join('')) };
   }
 
-  return { slackLead, repEmail, prospectEmail, speedLine, checksLine, CHECK_LABEL, esc };
+  return { HEADLINE, slackLead, repEmail, prospectEmail, speedLine, checksLine, CHECK_LABEL, esc };
 })();
 
 if (typeof module !== 'undefined') module.exports = MSG;

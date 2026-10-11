@@ -78,6 +78,7 @@ const sheetUpsert = (name, gid, pos) => node(name, 'n8n-nodes-base.googleSheets'
   operation: 'appendOrUpdate', documentId: { __rl: true, value: CFG.sheetId, mode: 'id' }, sheetName: { __rl: true, value: gid, mode: 'id' },
   columns: { mappingMode: 'autoMapInputData', value: {}, matchingColumns: ['Lead ID'], schema: [] }, options: {},
 }, pos, { credentials: CRED.sheets });
+const sticky = (name, text, col, cols, color) => node(name, 'n8n-nodes-base.stickyNote', 1, { content: text, width: cols * 240 - 30, height: 1180, color }, [col * 240 - 70, -820]);
 const schedule = (name, rule, pos) => node(name, 'n8n-nodes-base.scheduleTrigger', 1.2, { rule }, pos);
 
 /** connections from a compact list: [from, to] or [from, to, outputIndex] */
@@ -322,6 +323,13 @@ return [{ json: signed({ token: t.token, stage: 'routed', public: pub, lead_id: 
       headers: { 'X-MDR-Timestamp': '={{ $json.ts }}', 'X-MDR-Signature': '={{ $json.sig }}' }, neverError: true,
     }),
   ];
+  nodes.unshift(
+    sticky('Note: receive', '## 1. Receive\nWordPress posts the form here, signed with a shared secret. Anything unsigned gets a 401 and stops.', 0, 4, 7),
+    sticky('Note: look up', '## 2. Look them up\nOpen their website, run Lighthouse on this PC for a real mobile score, and for nonprofits find them in IRS records (ProPublica). The visitor sees these results while the rest runs.', 4, 8, 5),
+    sticky('Note: score', '## 3. Score\nCheap, certain rules first (spam, excluded orgs, budget). Then the local model (Ollama qwen2.5:7b) reads the lead, learning from verdicts people corrected in the CRM.', 12, 6, 4),
+    sticky('Note: route', '## 4. Route\nThe Team tab of the Google Sheet says who covers what; the CRM says who is busiest. Pick the rep and save the lead.', 18, 5, 6),
+    sticky('Note: tell everyone', '## 5. Tell everyone\nSlack (rep’s channel, with buttons), Asana task for leads that need a person, emails to the rep and the prospect, a row in the Sheet, and the strategist’s name back on the visitor’s results page.', 23, 12, 3),
+  );
   const connections = wire([
     ['WordPress form in', 'Check signature'], ['Check signature', 'Signed by WordPress?'],
     ['Signed by WordPress?', 'Reply 202', 0], ['Signed by WordPress?', 'Reply 401', 1],
@@ -457,7 +465,7 @@ if (ev.action === 'reassign') {
   thread = by + ' handed this lead to ' + ev.to + (ev.from ? ' (was ' + ev.from + ')' : '') + '.';
   if (rep && rep.email) {
     const e = MSG.repEmail({ ...lead, why: (lead.ai && lead.ai.reasons) || [] }, { lib: LIB, rep, crmUrl, siteName: CFG.siteNames[lead.site] });
-    plan.emails.push({ sender: { name: 'Marketing Done Right', email: CFG.sender }, to: [{ email: rep.email, name: rep.name }], subject: 'Handed to you: ' + e.subject.replace(/^.*?lead for you: /, ''), htmlContent: e.html });
+    plan.emails.push({ sender: { name: 'Marketing Done Right', email: CFG.sender }, to: [{ email: rep.email, name: rep.name }], subject: 'Handed to you: ' + e.subject.replace(/^.*? for you: /, ''), htmlContent: e.html });
   }
   if (lead.asana_task_gid) plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid + '/stories', body: { data: { text: thread } } });
   plan.log.push('Handover sent to ' + ev.to);
@@ -682,14 +690,14 @@ const roster = LIB.parseRoster($('Sheet: team roster').all().map((i) => i.json))
 const boss = LIB.manager(roster);
 const leads = ($('CRM: leads nobody has called').first().json.leads || []).filter((l) => !l.escalated_at && !l.duplicate_of);
 return leads.map((l) => {
-  const age = Math.round((Date.now() - new Date(l.created_at).getTime()) / 3600e3 * 10) / 10;
+  const age = (Date.now() - new Date(l.created_at).getTime()) / 3600e3;
   const crmUrl = CFG.crmPublic + '/leads/' + l.id;
-  const text = '⏰ ' + l.business + ' came in ' + age + ' hours ago as ' + LIB.VERDICT_LABEL[l.verdict].toLowerCase() + ', and nobody’s reached out yet. It’s ' + (l.assignee || 'unassigned') + '’s. <' + crmUrl + '|' + l.id + '>';
+  const text = '⏰ ' + l.business + ' came in ' + LIB.ageText(age) + ' ago as ' + LIB.VERDICT_LABEL[l.verdict].toLowerCase() + ', and nobody’s reached out yet. It’s ' + (l.assignee || 'unassigned') + '’s. <' + crmUrl + '|' + l.id + '>';
   return { json: {
     id: l.id, hours, age, ops: { channel: CFG.opsChannel, text, unfurl_links: false },
-    thread: l.slack_ts ? { channel: l.slack_channel, thread_ts: l.slack_ts, text: '⏰ Still no first contact after ' + age + ' hours. Flagged to ' + (boss ? boss.name : 'the manager') + '.' } : null,
-    email: boss ? { sender: { name: 'MDR Lead Hub', email: CFG.sender }, to: [{ email: boss.email, name: boss.name }], subject: 'Nobody has called ' + l.business + ' yet (' + age + ' h)',
-      htmlContent: '<p>Hi ' + LIB.firstName(boss.name) + ',</p><p>' + MSG.esc(l.business) + ' came in ' + age + ' hours ago as <strong>' + LIB.VERDICT_LABEL[l.verdict] + '</strong> (score ' + l.score + ') and is still marked New. It belongs to ' + MSG.esc(l.assignee || 'nobody') + '.</p><p><a href="' + crmUrl + '">Open ' + l.id + ' in the CRM</a></p>' } : null,
+    thread: l.slack_ts ? { channel: l.slack_channel, thread_ts: l.slack_ts, text: '⏰ Still no first contact after ' + LIB.ageText(age) + '. Flagged to ' + (boss ? boss.name : 'the manager') + '.' } : null,
+    email: boss ? { sender: { name: 'MDR Lead Hub', email: CFG.sender }, to: [{ email: boss.email, name: boss.name }], subject: 'Nobody has called ' + l.business + ' yet (' + LIB.ageText(age) + ')',
+      htmlContent: '<p>Hi ' + LIB.firstName(boss.name) + ',</p><p>' + MSG.esc(l.business) + ' came in ' + LIB.ageText(age) + ' ago as <strong>' + LIB.VERDICT_LABEL[l.verdict] + '</strong> (score ' + l.score + ') and is still marked New. It belongs to ' + MSG.esc(l.assignee || 'nobody') + '.</p><p><a href="' + crmUrl + '">Open ' + l.id + ' in the CRM</a></p>' } : null,
     manager: boss ? boss.name : null,
   } };
 });`, row(4), { lib: true, msg: true }),
@@ -746,8 +754,35 @@ return [{ json: {
   };
 }
 
+/* =====================================================================
+   W9  MDR · Sheet helper  (local only, key-protected; used by tools/reset-demo.mjs)
+   Lets a script clear or format the MDR spreadsheet through n8n's Google login.
+   It can only reach this one spreadsheet.
+   ===================================================================== */
+function sheetHelper() {
+  wfName = 'MDR · Sheet helper';
+  return {
+    name: wfName,
+    nodes: [
+      webhook('Script asks', 'mdr-sheet-helper', row(0)),
+      code('Check the key and the target', KEY_CHECK(`
+const b = $input.first().json.body || {};
+const allowed = typeof b.url === 'string' && b.url.startsWith('https://sheets.googleapis.com/v4/spreadsheets/' + CFG.sheetId);`).replace('return [{ json: { ok,', 'return [{ json: { ok: ok && allowed,'), row(1), { secrets: true }),
+      iff('Allowed?', '={{ $json.ok }}', row(2)),
+      http('Google Sheets API', row(3, -1), { method: "={{ $json.body.method || 'POST' }}", url: '={{ $json.body.url }}', json: '={{ JSON.stringify($json.body.data || {}) }}', neverError: true }),
+      code('Answer', `return [{ json: { response: $input.first().json } }];`, row(4, -1)),
+      respond('Send it back', row(5, -1)),
+      respond('Reply 401', row(3, 1), { code: 401 }),
+    ].map((n) => (n.name === 'Google Sheets API' ? { ...n, parameters: { ...n.parameters, authentication: 'predefinedCredentialType', nodeCredentialType: 'googleSheetsOAuth2Api' }, credentials: CRED.sheets } : n)),
+    connections: wire([
+      ['Script asks', 'Check the key and the target'], ['Check the key and the target', 'Allowed?'], ['Allowed?', 'Google Sheets API', 0], ['Allowed?', 'Reply 401', 1],
+      ['Google Sheets API', 'Answer'], ['Answer', 'Send it back'],
+    ]),
+  };
+}
+
 /* ---------- push ---------- */
-const WORKFLOWS = [errors, rosterWf, sync, slackButtons, asanaEvents, followup, digest, intake];
+const WORKFLOWS = [errors, rosterWf, sync, slackButtons, asanaEvents, followup, digest, sheetHelper, intake];
 export { WORKFLOWS };
 
 async function api(method, p, body) {
@@ -774,7 +809,7 @@ async function main() {
     if (found) { await api('POST', `/workflows/${found.id}/deactivate`).catch(() => {}); await api('PUT', `/workflows/${found.id}`, body); id = found.id; }
     else { id = (await api('POST', '/workflows', body)).id; }
     if (wf.name === 'MDR · Error alerts') errorId = id;
-    const activatable = wf.nodes.some((n) => /webhook|scheduleTrigger|errorTrigger/i.test(n.type) && !/errorTrigger/i.test(n.type));
+    const activatable = wf.nodes.some((n) => /webhook|scheduleTrigger/i.test(n.type));
     if (activatable) await api('POST', `/workflows/${id}/activate`);
     ids[wf.name] = id;
     console.log((found ? 'updated ' : 'created ') + wf.name + ' ' + id + (activatable ? ' (active)' : ''));

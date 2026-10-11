@@ -75,7 +75,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
                 <th aria-label="Verdict colour" />
                 <th>Business</th>
                 <th>Verdict</th>
-                <th>Score</th>
+                <th className="hide-sm">Score</th>
                 <th className="hide-sm">Segment</th>
                 <th className="hide-sm">Rep</th>
                 <th>Stage</th>
@@ -92,7 +92,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
                     <small>{l.id}, {l.contact_name}{l.duplicate_of ? `, repeat of ${l.duplicate_of}` : ""}</small>
                   </td>
                   <td><VerdictPill v={l.verdict} /></td>
-                  <td><Score n={l.score} /></td>
+                  <td className="hide-sm"><Score n={l.score} /></td>
                   <td className="hide-sm">{segmentLabel(l.segment)}</td>
                   <td className="hide-sm nowrap">{l.assignee || <span className="muted">Nobody</span>}</td>
                   <td><StageTag s={l.stage} /></td>

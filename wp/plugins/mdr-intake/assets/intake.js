@@ -193,7 +193,7 @@
       box.querySelector('.mdr-vital--speed').setAttribute('data-band', score === null ? 'none' : score >= 90 ? 'good' : score >= 50 ? 'ok' : 'poor');
       var meta = [];
       if (s.lcp_s) meta.push('Main content appears after ' + s.lcp_s.toFixed(1) + 's');
-      if (s.source === 'estimate') meta.push('Estimated from server response time');
+      if (score === null && r.reachable !== false) meta.push('We couldn’t time it on this run. Your strategist will measure it by hand.');
       q('[data-speed-meta]').textContent = meta.join('. ');
       renderChecks(r.checks || []);
       var okCount = (r.checks || []).filter(function (c) { return c.ok; }).length;

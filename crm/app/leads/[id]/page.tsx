@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getLead, listEvents, VERDICT_LABEL, STAGE_LABEL } from "@/lib/leads";
+import { ANSWER_VALUE } from "@/lib/labels";
 import { roster } from "@/lib/n8n";
 import { VerdictPill, Score, segmentLabel, when, ago } from "../../ui";
 import LeadActions from "./actions-panel";
@@ -11,9 +12,9 @@ const CHECK_LABEL: Record<string, string> = {
 };
 const ANSWER_LABEL: Record<string, string> = {
   practice_type: "Practice type", goals: "Wants", locations: "Locations", budget: "Budget", timeline: "Timing", message: "Message",
-  nonprofit_status: "501(c)(3)", mission: "Mission", grant_status: "Ad Grants today", staff: "Paid staff", ein: "EIN", state: "State", role: "Role", zip: "ZIP",
+  nonprofit_status: "Status", mission: "Mission", grant_status: "Ad Grants today", staff: "Paid staff", ein: "EIN", state: "State", role: "Role", zip: "ZIP",
 };
-const pretty = (v: unknown) => (Array.isArray(v) ? v.join(", ") : String(v ?? "")).replace(/_/g, " ");
+const pretty = (k: string, v: unknown) => (Array.isArray(v) ? v : [v]).map((x) => ANSWER_VALUE[k]?.[String(x)] || String(x ?? "").replace(/_/g, " ")).join(", ");
 
 function toolOf(actor: string, type: string): [string, string] {
   if (/slack/i.test(actor) || type === "slack") return ["tool-slack", "S"];
@@ -145,7 +146,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             <h2 id="h-ans">What they told us</h2>
             <dl className="facts">
               {Object.entries(f).filter(([k, v]) => ANSWER_LABEL[k] && v !== "" && v != null && !(Array.isArray(v) && !v.length)).map(([k, v]) => (
-                <div key={k} style={{ display: "contents" }}><dt>{ANSWER_LABEL[k]}</dt><dd>{k === "message" ? String(v) : pretty(v)}</dd></div>
+                <div key={k} style={{ display: "contents" }}><dt>{ANSWER_LABEL[k]}</dt><dd>{k === "message" ? String(v) : pretty(k, v)}</dd></div>
               ))}
             </dl>
           </section>
