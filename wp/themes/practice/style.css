@@ -59,3 +59,8 @@ a:focus-visible, .wp-element-button:focus-visible { outline: 3px solid var(--amb
 @media (max-width: 781px) {
   .pc-vitals { margin: 0; max-width: none; }
 }
+
+@media (max-width: 600px) {
+  .pc-header .wp-block-button__link { white-space: nowrap; font-size: .9rem; padding: .5rem .8rem !important; }
+  .pc-brand { font-size: 1.05rem; }
+}

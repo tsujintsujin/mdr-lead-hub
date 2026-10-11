@@ -1,10 +1,11 @@
 #!/bin/sh
 # One-command setup for both WordPress sites with WP-CLI. Safe to run again.
 # Run from the repo root:  MSYS_NO_PATHCONV=1 docker compose run --rm cli sh /repo/setup.sh
+# The cli container sees both sites; WORDPRESS_DB_NAME picks which database each command uses.
 set -e
 
-A="wp --path=/sites/a"
-B="wp --path=/sites/b"
+A="env WORDPRESS_DB_NAME=site_a wp --path=/sites/a"
+B="env WORDPRESS_DB_NAME=site_b wp --path=/sites/b"
 
 page() { # page <wp> <slug> <title> <content> -> prints id, creates or updates
   WP="$1"; id=$($WP post list --post_type=page --name="$2" --field=ID --post_status=publish | head -n1)
