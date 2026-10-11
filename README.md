@@ -1,59 +1,218 @@
 # MDR Lead Hub
 
-A working sample built for **Marketing Done Right** (Cleveland) as part of a
-Junior Full Stack Developer application: two WordPress lead-capture sites, an
-n8n system that qualifies and routes every lead with a local AI model, and a
-small CRM, wired into Google Sheets, Slack, Asana and email.
+A working sample built for **Marketing Done Right** (a digital marketing agency
+in Cleveland) as part of Justin Masiga's application for their Junior Full
+Stack Developer role.
 
-```
- Practice Growth Check (WordPress + Gutenberg)   Grant Ready (WordPress + Elementor)
-            └──────────── signed form posts ────────────┘
-                               ▼
-   n8n  ── website check, Lighthouse, IRS lookup, rules, Ollama qwen2.5:7b,
-           routing from the Sheet, Slack / Asana / email / Sheet fan-out
-                               ▼
-   CRM (Next.js + SQLite) ◄── changes flow both ways ──► Slack buttons, Asana tasks
-```
+**In one sentence:** two lead-capture websites collect enquiries, an
+automation system checks and scores each enquiry with a local AI model, and
+then sends it to the right salesperson through Slack, Asana, Google Sheets,
+email and a small CRM.
 
-## Run it
+- **To record the demo video:** follow [LOOM-SCRIPT.md](LOOM-SCRIPT.md). It
+  has every click and every value to type.
+- **To see how it was built, step by step:** [BUILD-LOG.md](BUILD-LOG.md).
 
-1. Docker Desktop and Ollama running (`ollama list` shows `qwen2.5:7b`).
-2. Double-click **`start.cmd`**. It starts the WordPress containers, n8n (if it
-   isn't running), the CRM and the tunnel, each in its own window.
-3. Open:
-   - Practice Growth Check: http://localhost:8081
-   - Grant Ready: http://localhost:8082
-   - CRM: http://localhost:3090
-   - n8n: http://localhost:5678 (workflows named "MDR · …")
-   - WordPress admin: `/wp-admin` on either site, user `mdradmin`, password in `.env`
-   - Sheet: https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU
-   - Slack: workspace MDR Demo, channels `#leads-*`, `#mdr-ops`, `#mdr-daily`
-   - Asana: project "MDR Lead Follow-ups"
+---
 
-## Useful commands
+## The pieces, in plain words
+
+| Piece | What it is | What it does here |
+|---|---|---|
+| **Site A, "Practice Growth Check"** | A WordPress website | A free website checkup for clinics (chiropractors, physical therapists, med spas). The visitor fills in a 3-step form and gets results on the next screen. |
+| **Site B, "Grant Ready"** | A WordPress website with the Elementor page builder plugin | A free check for nonprofits: do they qualify for Google Ad Grants ($10,000 a month in free Google search ads)? |
+| **The intake plugin** (`mdr-intake`) | A WordPress plugin, written for this project | The form on both sites. It checks what the visitor typed, saves it in WordPress, sends it to n8n signed with a secret key, and shows the results page. If n8n is down, it keeps the form and retries every 5 minutes. |
+| **n8n** | An automation tool (like Zapier, but running on this PC) | All the logic. It looks up the visitor's website and IRS records, scores the lead, picks the salesperson, and posts to Slack, Asana, email and the Sheet. |
+| **Ollama, model qwen2.5:7b** | A free AI model running on this PC | Reads each lead and gives an opinion. No paid AI service is used. |
+| **Lighthouse** | Google's free website speed test | Measures how fast the visitor's own website loads on a phone. |
+| **The CRM** | A small web app built for this project (Next.js + SQLite). Not WordPress. | Where the sales team sees every lead, changes its stage, corrects the AI, and hands leads to each other. |
+| **Google Sheet** | A normal Google spreadsheet | The **Team** tab decides who gets which kind of lead. The **Leads** tab is a running log of every lead. |
+| **Slack** | Workspace **MDR Demo** | Each salesperson has a channel. New leads appear there with buttons (Mark contacted, Booked a call, Not a fit). |
+| **Asana** | Project **MDR Lead Follow-ups** | A follow-up task for every lead that needs a person. When a lead is won, a whole onboarding project is created. |
+| **Brevo** | An email-sending service | Sends the email to the prospect and the email to the salesperson. |
+| **Cloudflare Tunnel** | A secure link from the internet to this PC | Lets Slack and Asana tell n8n when someone clicks a button or ticks a task. Only those two paths are open; everything else is blocked. |
+
+The salespeople (Ana Reyes, Ben Kowalski, Carla Jimenez, Dana Price) and the
+manager (Marcus Hale) are made up. Their email addresses are Gmail `+`
+addresses (e.g. `justin.masiga.94+ana@gmail.com`), which all land in Justin's
+inbox.
+
+---
+
+## What the two sites really are
+
+Both sites are real WordPress installations, but **they only run on this PC**
+and **neither was built by hand in a visual editor**. Here's what that means.
+
+### They only run on this PC ("localhost")
+
+`localhost` means "this computer". Both sites run in **Docker** (software that
+runs a server on your own PC), each with its own MySQL database:
+
+- Site A: http://localhost:8081
+- Site B: http://localhost:8082
+
+Those addresses only work on Justin's PC. **Nothing is online.** Nobody at
+Marketing Done Right can open a link to either site. They can only see them
+in the Loom video or by running the code themselves. Putting them online
+would need a WordPress host, and the form would need a public route to n8n.
+Neither has been done.
+
+### Site A: a custom WordPress theme written as code
+
+Site A uses a **block theme** written for this project
+(`wp/themes/practice/`). A block theme is WordPress's modern way of building a
+theme. The design is set in `theme.json`, and each page layout is a template
+file made of WordPress blocks.
+
+- The home page is the theme's `front-page.html` template: 4 headings, 4
+  paragraphs, 1 button, columns and groups (all normal WordPress blocks), plus
+  2 **Custom HTML** blocks with hand-written code (the sample "vitals" card
+  and the three "what the checkup looks at" panels) and 1 **Shortcode** block,
+  which is the form from the plugin.
+- Those templates were written as code files, not built by clicking in the
+  WordPress editor. Someone could still open them in WordPress's **Site
+  Editor** (Appearance → Editor) and edit the normal blocks there.
+
+### Site B: Elementor pages generated by a script
+
+Site B has **Elementor** installed and switched on, with the **Hello
+Elementor** theme. Its pages are Elementor pages. But:
+
+- **They were not built by hand in Elementor's editor.** A PHP script
+  (`wp/site-b/build.php`) writes Elementor's page data directly into the
+  database. The reason was that the whole site can be rebuilt with one
+  command, but it is not how someone normally builds with Elementor.
+- **Most of the page is hand-written code inside Elementor.** The home page has
+  17 Elementor widgets:
+  - 4 **Heading** and 5 **Text Editor** widgets: normal Elementor widgets you
+    can click and edit.
+  - 7 **HTML** widgets holding hand-written HTML: the top bar with the logo,
+    the footer, the small "Google Ad Grants for nonprofits" label, the green
+    button with its checklist, the sample eligibility report card, the "How
+    the check works" steps, and the "Who Google says yes to" list. In
+    Elementor's editor these show as code boxes, not as things you can drag
+    and style.
+  - 1 **Shortcode** widget: the form from the plugin.
+
+  The results page is 2 HTML widgets and 1 Shortcode widget.
+- **The colours, fonts and spacing come from a custom stylesheet**
+  (`wp/site-b/site.css`, pasted into WordPress's Additional CSS), not from
+  Elementor's own style settings. Changing a colour in Elementor's panels won't
+  change the design.
+
+**In short:** Site B is "WordPress with Elementor" in the technical sense, but
+it is mostly code placed inside Elementor, not a site designed with
+Elementor's drag-and-drop tools. Don't present it as an Elementor design in the
+video.
+
+### The CRM is not WordPress at all
+
+The CRM (http://localhost:3090) is a separate app written in Next.js with a
+SQLite database. It's the screen the sales team would use.
+
+---
+
+## How a lead moves through the system
+
+1. A visitor fills in the 3-step form on Site A or Site B and clicks submit.
+2. The plugin checks the answers, saves them in WordPress, and sends them to
+   n8n with a signature (proof it really came from the site).
+3. n8n opens the visitor's website, runs a Lighthouse speed test on this PC,
+   and, for nonprofits, looks the organisation up in IRS records (through
+   ProPublica's free database).
+4. The visitor's results page fills in with real numbers while the rest runs.
+5. Simple rules score the lead first: spam, organisations Google won't fund,
+   budget, whether they're in MDR's area. Rules give up to 70 points.
+6. The local AI model reads the lead and adds up to 30 points for how serious
+   it sounds. It also writes a summary, reasons, and an opening line for the
+   salesperson. If people have corrected the AI before, those corrections go
+   into its instructions.
+7. The total score decides the verdict: **Hot**, **Warm**, **Needs a
+   conversation**, **Not a fit** or **Spam**.
+8. n8n reads the **Team** tab of the Google Sheet to see who covers that kind
+   of business, and asks the CRM who's least busy. That person gets the lead.
+9. The lead is saved in the CRM, posted in that person's Slack channel with
+   buttons, given an Asana task (if a person needs to act), emailed to the
+   salesperson and the prospect, and added to the Sheet. The visitor's results
+   page shows the salesperson's name.
+10. From then on, a change anywhere (a Slack button, ticking the Asana task, a
+    stage change in the CRM) is copied to all the other places.
+11. If a lead is still untouched after 24 hours, the manager gets a Slack alert
+    and an email. Every morning at 8:00 (New York time) a summary goes to
+    `#mdr-daily`.
+
+---
+
+## How to start it
+
+1. **Docker Desktop** must be running ("Engine running").
+2. **Ollama** must be running. It normally starts with Windows. To check, run
+   `ollama list` in a terminal and look for `qwen2.5:7b`.
+3. Double-click **`start.cmd`** in this folder. It starts the two WordPress
+   sites, and opens n8n, the CRM and the tunnel in their own windows if they
+   aren't already running. Leave those windows open.
+4. Open:
+
+| What | Address |
+|---|---|
+| Site A, Practice Growth Check | http://localhost:8081 |
+| Site B, Grant Ready | http://localhost:8082 |
+| CRM | http://localhost:3090 |
+| n8n | http://localhost:5678 (the workflows are the ones named "MDR · …") |
+| WordPress admin | add `/wp-admin` to either site. User `mdradmin`; the password is in `.env` |
+| Google Sheet | https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU |
+| Slack | workspace **MDR Demo**: channels `#leads-healthcare`, `#leads-home-services`, `#leads-nonprofit`, `#leads-general`, `#mdr-ops` (alerts), `#mdr-daily` (summary) |
+| Asana | project **MDR Lead Follow-ups** |
+
+---
+
+## Commands you might need
+
+Run these in a terminal opened in this folder.
 
 | Command | What it does |
 |---|---|
-| `node tools/reset-demo.mjs` | Empty everything (CRM, Sheet leads, Asana, WordPress submissions, Slack channels) for a clean take |
-| `node tools/seed-demo.mjs` | Send five realistic leads through the real form endpoints (about 5 minutes) |
-| `node n8n/build.mjs` | Rebuild and push all n8n workflows from code |
-| `node n8n/test.js` | Self-check of the scoring, routing and message logic |
-| `curl "localhost:5678/webhook/mdr-followup-now?hours=0.05"` | Run the follow-up watch now, treating anything older than 3 minutes as overdue |
-| `curl localhost:5678/webhook/mdr-digest-now` | Post the daily digest now |
-| `MSYS_NO_PATHCONV=1 docker compose run --rm cli sh /repo/setup.sh` | Rebuild both WordPress sites from scratch |
+| `node tools/reset-demo.mjs` | Wipes the demo clean: the CRM, the Sheet's Leads tab, the Asana tasks and onboarding projects, the WordPress form entries, and the Slack lead channels. Emails already in Gmail stay. |
+| `node tools/seed-demo.mjs` | Sends five sample leads through the real forms (takes about 5 minutes). |
+| `node n8n/test.js` | Checks the scoring, routing and message logic without sending anything. |
+| `node n8n/build.mjs` | Rebuilds every n8n workflow from the code in `n8n/` and uploads it to n8n. |
+| `MSYS_NO_PATHCONV=1 docker compose run --rm cli sh /repo/setup.sh` | Rebuilds both WordPress sites from scratch. |
 
-## Where things are
+These two can just be opened in a browser tab:
 
-| Path | What |
+| Address | What it does |
 |---|---|
-| `wp/plugins/mdr-intake/` | The intake plugin both sites use (forms, REST, signing, retry queue, results page) |
-| `wp/themes/practice/` | Site A's block theme |
-| `wp/site-b/` | Site B's Elementor page builder script and CSS |
-| `n8n/` | Workflow builder, logic, tests, saved workflow JSON |
-| `crm/` | The CRM |
-| `tools/` | Lighthouse runner, demo reset/seed, phone screenshot helper |
-| `BUILD-LOG.md` | Every step, every technology, every connection |
-| `LOOM-SCRIPT.md` | What to show, in order |
+| http://localhost:5678/webhook/mdr-followup-now?hours=0.05 | Runs the "nobody has called this lead" check now, treating anything older than 3 minutes as overdue. Each lead is only flagged once. |
+| http://localhost:5678/webhook/mdr-digest-now | Posts the daily summary now. |
 
-Secrets live in `.env` (never committed); the source of truth is
-`D:\AIO Freelance\Credentials\MDR\.env`.
+---
+
+## Known problems
+
+- **The https check on Site B can be wrong.** If a nonprofit's site redirects
+  to its `www.` address (e.g. greaterclevelandfoodbank.org), the result says
+  "Loads without https" even though the site uses https. Found 2026-10-12, not
+  fixed yet.
+- **Slack cards can take 10–20 seconds to update** after a button click, and
+  sometimes only show the change after the Slack page is reloaded. The change
+  itself is saved straight away.
+
+---
+
+## Where things are in the code
+
+| Folder | What's in it |
+|---|---|
+| `wp/plugins/mdr-intake/` | The form plugin both sites use |
+| `wp/themes/practice/` | Site A's theme |
+| `wp/site-b/` | The script that generates Site B's Elementor pages, and its stylesheet |
+| `wp/setup.sh` | Sets up both WordPress sites in one go |
+| `n8n/` | The code that builds every n8n workflow, plus its test |
+| `crm/` | The CRM app |
+| `tools/` | Lighthouse runner, demo reset and seed, phone-size screenshot helper |
+| `docker-compose.yml` | Defines the WordPress, MySQL and WP-CLI containers |
+| `tunnel/` | The Cloudflare Tunnel settings |
+
+Passwords and keys live in `.env`, which is never committed. The master copy
+is `D:\AIO Freelance\Credentials\MDR\.env`.
