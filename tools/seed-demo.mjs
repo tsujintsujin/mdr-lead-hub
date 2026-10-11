@@ -35,6 +35,8 @@ const LEADS = [
     tracking: { landing_page: '/' } } },
 ];
 
+if (!(await fetch('http://localhost:3090/').then((r) => r.ok, () => false))) { console.log('The CRM is not running on :3090. Run start.cmd first.'); process.exit(1); }
+
 for (const l of LEADS) {
   process.stdout.write(`${l.label}... `);
   const r = await (await fetch(`http://localhost:${l.port}/wp-json/mdr/v1/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(l.body) })).json();

@@ -15,7 +15,7 @@ const PEOPLE = ["Marcus Hale", "Ana Reyes", "Ben Kowalski", "Carla Jimenez", "Da
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const me = (await cookies()).get("mdr_me")?.value || "Marcus Hale";
-  const counts = db.prepare("SELECT COUNT(*) total, SUM(stage IN ('new','contacted','booked')) open FROM leads WHERE duplicate_of IS NULL").get() as { total: number; open: number };
+  const counts = db.prepare("SELECT COUNT(*) total, SUM(stage IN ('new','contacted','booked') AND IFNULL(verdict, '') <> 'spam') open FROM leads WHERE duplicate_of IS NULL").get() as { total: number; open: number };
   const sheet = process.env.SHEET_URL;
   const asana = process.env.ASANA_PROJECT ? `https://app.asana.com/0/${process.env.ASANA_PROJECT}/board` : null;
   const slack = process.env.SLACK_TEAM_ID ? `https://app.slack.com/client/${process.env.SLACK_TEAM_ID}` : null;

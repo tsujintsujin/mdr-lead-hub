@@ -78,7 +78,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
                 <th className="hide-sm">Score</th>
                 <th className="hide-sm">Segment</th>
                 <th className="hide-sm">Rep</th>
-                <th>Stage</th>
+                <th className="hide-sm">Stage</th>
                 <th className="hide-sm">Source</th>
                 <th className="hide-sm">Received</th>
               </tr>
@@ -95,7 +95,7 @@ export default async function Leads({ searchParams }: { searchParams: SP }) {
                   <td className="hide-sm"><Score n={l.score} /></td>
                   <td className="hide-sm">{segmentLabel(l.segment)}</td>
                   <td className="hide-sm nowrap">{l.assignee || <span className="muted">Nobody</span>}</td>
-                  <td><StageTag s={l.stage} /></td>
+                  <td className="hide-sm"><StageTag s={l.stage} /></td>
                   <td className="hide-sm">{l.source}</td>
                   <td className="hide-sm nowrap muted" title={l.created_at}>{ago(l.created_at)}</td>
                 </tr>

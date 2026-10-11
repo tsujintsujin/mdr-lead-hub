@@ -41,10 +41,10 @@ log(`Asana: ${tasks.length} follow-up task(s) and ${onboarding.length} onboardin
 // 4. WordPress submissions
 for (const s of ['a', 'b']) {
   try {
-    execSync(`docker compose run --rm cli sh -c "ids=$(env WORDPRESS_DB_NAME=site_${s} wp --path=/sites/${s} post list --post_type=mdr_submission --post_status=any --format=ids); [ -n \\"$ids\\" ] && env WORDPRESS_DB_NAME=site_${s} wp --path=/sites/${s} post delete $ids --force || true"`, { cwd: root, stdio: 'ignore', env: { ...process.env, MSYS_NO_PATHCONV: '1' } });
+    execSync(`docker compose run --rm cli sh -c "ids=$(env WORDPRESS_DB_NAME=site_${s} wp --path=/sites/${s} post list --post_type=mdr_submission --post_status=any --format=ids); [ -n \\"$ids\\" ] && env WORDPRESS_DB_NAME=site_${s} wp --path=/sites/${s} post delete $ids --force; env WORDPRESS_DB_NAME=site_${s} wp --path=/sites/${s} transient delete --all >/dev/null 2>&1 || true"`, { cwd: root, stdio: 'ignore', env: { ...process.env, MSYS_NO_PATHCONV: '1' } });
   } catch {}
 }
-log('WordPress submissions cleared on both sites');
+log('WordPress submissions and the per-visitor rate limit (6 forms / 10 min) cleared on both sites');
 
 // 5. Slack: archive the used channels and create empty ones with the same names
 const S = { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' };
@@ -68,5 +68,7 @@ log('Slack lead channels recreated empty (old ones archived)');
 
 // 6. CRM back up
 execSync(`powershell -NoProfile -Command "Start-Process cmd -ArgumentList '/k','\"${path.join(root, 'start-crm.cmd')}\"' -WindowStyle Minimized"`);
-log('CRM restarting on http://localhost:3090 (fresh, empty)');
+let up = false;
+for (let i = 0; i < 30 && !up; i++) { await new Promise((r) => setTimeout(r, 2000)); up = await fetch('http://localhost:3090/').then((r) => r.ok, () => false); }
+log(up ? 'CRM back up on http://localhost:3090 (fresh, empty)' : 'CRM did NOT come back up. Run start-crm.cmd (or start.cmd) before sending leads.');
 console.log('Done. Submit a form on http://localhost:8081 or :8082 to start the demo.');
