@@ -62,6 +62,9 @@ services:
     volumes:
       - site-a:/sites/a
       - site-b:/sites/b
+      - ./wp/plugins/mdr-intake:/sites/a/wp-content/plugins/mdr-intake
+      - ./wp/plugins/mdr-intake:/sites/b/wp-content/plugins/mdr-intake
+      - ./wp/themes/practice:/sites/a/wp-content/themes/practice
       - ./wp:/repo:ro
 
 volumes:
