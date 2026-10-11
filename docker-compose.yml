@@ -1,0 +1,70 @@
+# MDR Lead Hub - two local WordPress sites on one MySQL (the same pieces the
+# MDR stack runs on: MySQL + PHP). Start: docker compose up -d
+# Site A http://localhost:8081  Site B http://localhost:8082
+name: mdr
+
+x-wp: &wp
+  image: wordpress:6.8-php8.3-apache
+  restart: unless-stopped
+  depends_on: [db]
+  extra_hosts: ["host.docker.internal:host-gateway"]
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db:/var/lib/mysql
+      - ./wp/initdb:/docker-entrypoint-initdb.d:ro
+
+  site-a:
+    <<: *wp
+    ports: ["8081:80"]
+    environment: &wpenv
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: root
+      WORDPRESS_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      WORDPRESS_DB_NAME: site_a
+      MDR_SITE: site-a
+      MDR_HMAC_SECRET: ${MDR_HMAC_SECRET}
+      MDR_N8N_INTAKE: http://host.docker.internal:5678/webhook/mdr-intake
+      WORDPRESS_CONFIG_EXTRA: |
+        define('MDR_SITE', getenv_docker('MDR_SITE', ''));
+        define('MDR_HMAC_SECRET', getenv_docker('MDR_HMAC_SECRET', ''));
+        define('MDR_N8N_INTAKE', getenv_docker('MDR_N8N_INTAKE', ''));
+        define('WP_ENVIRONMENT_TYPE', 'local');
+    volumes:
+      - site-a:/var/www/html
+      - ./wp/plugins/mdr-intake:/var/www/html/wp-content/plugins/mdr-intake
+      - ./wp/themes/practice:/var/www/html/wp-content/themes/practice
+
+  site-b:
+    <<: *wp
+    ports: ["8082:80"]
+    environment:
+      <<: *wpenv
+      WORDPRESS_DB_NAME: site_b
+      MDR_SITE: site-b
+    volumes:
+      - site-b:/var/www/html
+      - ./wp/plugins/mdr-intake:/var/www/html/wp-content/plugins/mdr-intake
+      - ./wp/site-b:/var/www/html/wp-content/mdr-site-b:ro
+
+  cli:
+    image: wordpress:cli-php8.3
+    profiles: [tools]
+    user: "33:33"
+    depends_on: [db]
+    environment:
+      <<: *wpenv
+    volumes:
+      - site-a:/sites/a
+      - site-b:/sites/b
+      - ./wp:/repo:ro
+
+volumes:
+  db:
+  site-a:
+  site-b:
