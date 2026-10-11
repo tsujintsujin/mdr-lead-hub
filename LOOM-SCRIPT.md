@@ -1,47 +1,412 @@
-# Loom script (about 6–8 minutes)
+# Loom script: MDR Lead Hub demo (about 10 minutes)
 
-Before recording: run `start.cmd`, then (if you want a clean slate)
-`node tools/reset-demo.mjs` and `node tools/seed-demo.mjs`. Have these tabs open:
-Site A, Site B, CRM, Slack (#leads-healthcare), Asana board, the Sheet, n8n.
+This is the full walkthrough to record for Marketing Done Right. Every step
+gives you the exact address to open, every value to type, which button to
+click, what appears on screen, and a line you can say. Lines in quotes are
+suggestions; say them in your own words.
 
-1. **The idea (20 s).** "MDR gets leads from forms on client and campaign sites.
-   I built the system that catches them, works out which ones matter, and gets
-   them to the right person in the tools the team already uses."
+Steps 2 to 8 were run for real on 2026-10-12 with these exact values, and the
+"what you'll see" parts describe what actually appeared. Step 9 (the overdue
+alert) was not re-run that day, because it only fires once per lead and would
+have used up the alert before your recording. Its description comes from the
+workflow itself.
 
-2. **Site A, live (1.5 min).** http://localhost:8081, open it with
-   `?utm_source=google&utm_medium=cpc&gclid=test` so the source shows as Google
-   Ads. Fill the checkup as a clinic (use one of your `+alias` emails). Submit
-   and let the results page fill in: speed from a real Lighthouse run, Google
-   basics, then the strategist's name.
+---
 
-3. **Site B, quickly (30 s).** http://localhost:8082. Point out it's a different
-   design and a different builder (Elementor), but the same plugin and pipeline.
-   Show one finished result with the stamp.
+## Part A. Before you press record (about 15 minutes)
 
-4. **n8n (1.5 min).** Open "MDR · Lead intake". Walk the five sticky-note
-   stages left to right. Open the last execution and click the Ollama node to
-   show the JSON the model returned. Mention: rules run first, the model only
-   judges what's left, and it learns from corrections people make.
+### A1. Start everything
 
-5. **Slack (45 s).** #leads-healthcare: the lead card with the AI's read and the
-   opening line. Click **Mark contacted** and watch the card update.
+1. Open **Docker Desktop** and wait until it says **Engine running**.
+2. Double-click **`start.cmd`** in `D:\AIO Freelance\Resumes\WP`.
+   It opens these windows. Leave them all open while you record:
+   - **n8n**: the automation tool. Its window shows a log.
+   - **MDR CRM (port 3090)**: the CRM app (starts minimised).
+   - **MDR tunnel (mdr-hooks.thejobstash.com → …)**: the connection that
+     lets Slack and Asana send clicks back to your PC (starts minimised).
+     **If this window isn't open, the Slack buttons and Asana ticks do
+     nothing.**
+3. Ollama (the local AI) starts with Windows. You don't need to do anything
+   for it.
 
-6. **Asana (30 s).** The task moved to Contacted with a comment. Tick another
-   lead's task and show it moving in the CRM.
+### A2. Wipe the demo and load the five sample leads
 
-7. **CRM (1.5 min).** http://localhost:3090. Triage strip, the roofer that used
-   the clinic form and got routed to the home-services rep, the timeline across
-   every tool. Correct a verdict with a reason ("the model reads this next
-   time"). Mark one **Won** and switch to Asana to show the onboarding project
-   that just appeared.
+Open a terminal in `D:\AIO Freelance\Resumes\WP` and run these two commands,
+one after the other:
 
-8. **Sheet + email (30 s).** The Leads tab updating; the Team tab that controls
-   routing. One prospect email and one rep email in Gmail.
+```bash
+node tools/reset-demo.mjs
+```
 
-9. **Ops (30 s).** Run `curl "localhost:5678/webhook/mdr-followup-now?hours=0.05"`
-   and show the alert in #mdr-ops. Mention the daily digest and the error
-   alerts.
+This empties the CRM, the Sheet's Leads tab, the Asana tasks and onboarding
+projects, the WordPress submissions, and the Slack lead channels. It can't
+delete emails already in your Gmail.
 
-10. **Close (15 s).** "Everything runs locally: WordPress in Docker with MySQL,
-    n8n, a local model, Lighthouse. The repo and a step-by-step build log are
-    ready to share."
+```bash
+node tools/seed-demo.mjs
+```
+
+This sends five sample leads through the real forms, one at a time. It takes
+about 5 minutes and prints one line per lead, ending in `routed`:
+
+| # | Business | Contact | What the system decides |
+|---|---|---|---|
+| 1 | The Joint Chiropractic (Mentor) | Megan Doyle | Hot, goes to Ana Reyes |
+| 2 | Summit Roofing & Gutters | Tony Russo | Needs a conversation, goes to Ben Kowalski (a roofer that used the clinic form) |
+| 3 | Cleveland Animal Protective League | Laura Bennett | Hot, goes to Carla Jimenez |
+| 4 | Westlake City Schools | Paul Grant | Not a fit (Google doesn't give Ad Grants to schools) |
+| 5 | RankBoost Digital | Steve | Spam, nobody is told |
+
+**Record the same day you seed.** Once an hour the system flags any lead
+nobody has contacted for 24 hours. If you seed today and record tomorrow,
+those alerts will already have gone out and step 9 will have nothing to show.
+
+### A3. Open these tabs in Chrome, in this order
+
+| Tab | Address |
+|---|---|
+| 1. Site A | http://localhost:8081/?utm_source=google&utm_medium=cpc&gclid=test |
+| 2. Site B | http://localhost:8082/?utm_source=facebook&utm_medium=paid_social |
+| 3. n8n | http://localhost:5678 (log in if asked), then open the workflow **MDR · Lead intake** |
+| 4. Slack | https://app.slack.com/client/T0C88FA7FA7 (workspace **MDR Demo**), channel **#leads-healthcare** |
+| 5. Asana | Project **MDR Lead Follow-ups**, **Board** view |
+| 6. CRM | http://localhost:3090 |
+| 7. Google Sheet | https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU |
+| 8. Gmail | your inbox |
+
+The extra bits on the Site A and Site B addresses (`?utm_source=google…`)
+make the system think the visitor came from a Google ad (Site A) or a Facebook
+ad (Site B). That's how the "Came from" column gets filled in.
+
+### A4. The email addresses you'll type
+
+You'll type email addresses like `justin.masiga.94+rachel.moore@gmail.com`.
+That's a Gmail feature: anything after a `+` is ignored for delivery, so this
+lands in your normal inbox. It lets your one inbox play many different
+customers, and each sample customer gets their own address.
+
+### A5. Know this before you describe Site B
+
+Site B is a real WordPress site with the Elementor plugin installed and
+switched on. But **its pages were generated by a code script, not built by
+hand in Elementor's editor**, and most of the page is Elementor "HTML" boxes
+holding hand-written code. See "What the two sites really are" in
+[README.md](README.md). **Don't say on camera that you designed it in
+Elementor.** Step 3 has an accurate line to say.
+
+### A6. Known problem to check before recording
+
+On the Site B test, the result said **"Website loads on https ✕ Loads without
+https"** for greaterclevelandfoodbank.org, but that site does use https. The
+website check has a bug when a site redirects to its `www.` address. Until it's
+fixed, either cut that moment or skip Site B's live form and only show its home
+page.
+
+---
+
+## Part B. The recording
+
+### Step 1. The idea (20 seconds)
+
+**On screen:** Tab 1 (Site A home page).
+
+**Say:** "Marketing Done Right gets leads from forms on client and campaign
+sites. I built the system that catches those leads, works out which ones
+matter, and gets each one to the right person in the tools the team already
+uses: Slack, Asana, Google Sheets and email."
+
+### Step 2. Site A: fill in the form live (about 2½ minutes)
+
+**On screen:** Tab 1, http://localhost:8081.
+
+**Say:** "This is Practice Growth Check, a free website checkup for clinics.
+It's a WordPress site. I'll fill it in as a physical therapy clinic that
+clicked a Google ad."
+
+1. Click **Start the checkup**. The page scrolls down to the form.
+2. **Step 1 of 3, "Your practice"**. Type:
+   - Practice name: `ATI Physical Therapy (Lakewood)`
+   - Website address: `atipt.com`
+   - What kind of practice is it?: choose **Physical therapy**
+   - ZIP code of your main location: `44107`
+
+   Click **Next**.
+3. **Step 2 of 3, "What you're after"**:
+   - What would help most right now?: tick **More new patients** and
+     **Show up higher on Google**
+   - How many locations?: **One**
+   - Monthly marketing budget: **$1,500 to $5,000**
+   - When are you hoping to start?: **As soon as possible**
+   - Anything we should know?: type
+     `We opened our Lakewood clinic in the spring and our new physical therapist still has open slots most afternoons. We want more people nearby to find us on Google.`
+
+   Click **Next**.
+4. **Step 3 of 3, "Where to send it"**:
+   - Your name: `Rachel Moore`
+   - Email: `justin.masiga.94+rachel.moore@gmail.com`
+   - Phone: `216-555-0142`
+   - Tick **Yes, you can contact me about my results.**
+
+   Click **Run my checkup**.
+
+**What you'll see:** a page titled **Running your checkup** with four lines
+ticking through: *Opening your website*, *Timing it on a phone*, *Reading what
+Google sees*, *Finding the right strategist*.
+
+**Say while it runs (about 1½ minutes in total):** "Right now n8n is opening
+their real website and running Google's Lighthouse speed test on my machine,
+the way a phone would load it. Then the AI reads the lead."
+
+After about a minute the results appear:
+- **Mobile speed 31/100**, "Main content appears after 17.0s". The exact
+  number changes a little each run.
+- **Google basics 4 of 6**: passed *Page title*, *Meta description*,
+  *Secure (https)*, *Works on phones*; missing *One clear main heading* and
+  *Local business details for Google*.
+
+About 30 seconds later, at the bottom:
+**"Ana Reyes, Account strategist. Ana will go through this with you."**
+
+**Say:** "Real numbers from a real test, and the visitor already knows who'll
+call them. Ana covers healthcare, so she got it."
+
+> If the wait feels long on camera, press Loom's pause button after clicking
+> **Run my checkup** and resume when the results are in.
+
+### Step 3. Site B (about 1 minute, or 4 with the live form)
+
+**On screen:** Tab 2, http://localhost:8082.
+
+**Say:** "This is the second site, Grant Ready. It checks whether a nonprofit
+qualifies for Google Ad Grants, which is $10,000 a month in free search ads.
+It's another WordPress site, this one using the Elementor page builder. To be
+upfront, I generated its Elementor pages from a script so the whole setup can
+be rebuilt in one command, and most of the layout is custom HTML inside
+Elementor. The form underneath is the same WordPress plugin Site A uses,
+feeding the same n8n system."
+
+Scroll down slowly past the sample eligibility report, **How the check
+works**, and **Who Google says yes to**.
+
+**Optional live form** (read A6 first). Click **Check my nonprofit**, then:
+1. **Step 1, "Your organization"**: Organization name
+   `Greater Cleveland Food Bank`, Website `greaterclevelandfoodbank.org`,
+   leave EIN empty, State **OH**. Click **Next**.
+2. **Step 2, "Where you are now"**: 501(c)(3) status **Yes, we have IRS
+   501(c)(3) status**. What does your organization do? **Human services**. Do
+   you already have Google Ad Grants? **No**. How many paid staff? **More than
+   25**. Tick **More volunteers**. Anything else? type
+   `We need more volunteers for our holiday food drive in November and December. We have never used Google Ad Grants.`
+   Click **Next**.
+3. **Step 3, "Who we're talking to"**: Your name `David Chen`, Your role
+   `Volunteer coordinator`, Email `justin.masiga.94+david.chen@gmail.com`,
+   leave phone empty, tick the consent box. Click **Check eligibility**.
+
+**What you'll see:** "Checking your eligibility" for about 2 minutes (pause
+Loom), then a yellow **Almost there** badge with four checks. One is *Found in
+IRS nonprofit records: Greater Cleveland Food Bank Inc, Cleveland*, plus the
+IRS record line *EIN 34-1292848*. About a minute later: **"Carla Jimenez, Ad
+Grants specialist."**
+
+**Say:** "It looked them up in the IRS nonprofit records on its own. Nobody had
+to type an EIN."
+
+### Step 4. n8n: where the logic lives (about 1½ minutes)
+
+**On screen:** Tab 3, the workflow **MDR · Lead intake**.
+
+It opens zoomed far out: five coloured sections in a row (grey, blue, green,
+purple, red), too small to read on video. Use the **+** magnifier button at the
+bottom left of the canvas, or Ctrl + mouse wheel, to zoom in on one section at
+a time, and drag the empty background to move along.
+
+**Say:** "Both sites send every form here. This is n8n, an automation tool,
+and all the decision-making lives in it."
+
+Each section has a title at its top left. Left to right:
+1. **1. Receive.** "WordPress signs every form with a shared secret. Anything
+   unsigned is rejected."
+2. **2. Look them up.** "It opens their website, runs Lighthouse, and for
+   nonprofits checks the IRS records."
+3. **3. Score.** "Simple rules go first: spam, organisations Google excludes,
+   budget. Then a local AI model, Qwen 2.5 running on my own PC through
+   Ollama, judges the rest. No paid AI service."
+4. **4. Route.** "The Team tab of a Google Sheet says who covers what, and the
+   CRM says who's busiest."
+5. **5. Tell everyone.** "Slack, Asana, emails, the Sheet, and the
+   strategist's name back on the visitor's screen."
+
+Then show the AI's actual answer:
+1. Click **Executions** in the middle of the top bar.
+2. On the left is a list of runs with times, e.g. *Oct 12, 06:52:34,
+   Succeeded in 1m 21s*. Click the one from your Rachel Moore form (the
+   newest, unless you also sent the Site B form; then it's the second one).
+3. The canvas on the right shows that run. If it's zoomed in on the first few
+   boxes, click **Logs** in the bar along the bottom once. The canvas then
+   zooms out to show all five sections.
+4. In the **green** section (3. Score), three boxes sit above the main line.
+   Double-click the **third** one, **Ollama qwen2.5:7b**.
+5. A big panel opens. The **OUTPUT** column on the right shows what the model
+   sent back, inside `"content"`: the segment (`healthcare_wellness`), an
+   intent score out of 30 (`"intent": 25`), its confidence (`0.9`), a one-line
+   summary, its reasons, an opening line for the rep, and red flags (none
+   here).
+6. Close the panel with the **X** at the top right.
+
+**Say:** "The model doesn't decide on its own. Simple rules give up to 70
+points, the model adds up to 30 for how serious the lead sounds, and that
+total decides Hot, Warm and so on."
+
+**Say:** "If a person corrects a verdict in the CRM, the AI gets that
+correction as an example the next time."
+
+### Step 5. Slack (about 45 seconds)
+
+**On screen:** Tab 4, channel **#leads-healthcare**. Scroll to the bottom.
+
+**What you'll see:** a message from **MDR Lead Hub**:
+**🔥 Hot lead: ATI Physical Therapy (Lakewood)**, then *Score 90. Healthcare
+and wellness. Came from Google Ads. MDR-…*, Contact *Rachel Moore*, Assigned
+to *Ana Reyes*, Budget *$1,500–5,000/mo*, Timing *Wants to start ASAP*, an
+**AI read** line, a few bullet reasons, an **Opening line** for the rep, and
+four buttons: **Mark contacted**, **Booked a call**, **Not a fit**, **Open in
+CRM**.
+
+**Say:** "Ana gets this in her own channel. She can act on it without leaving
+Slack."
+
+Click **Mark contacted**.
+
+**What you'll see:** after about 10–20 seconds the card changes. A new line
+says *📞 Contacted, by Justin Masiga in Slack*, the **Mark contacted** button
+disappears, and a reply appears in the thread. **If it hasn't changed after 20
+seconds, reload the Slack tab.** On the test run the change was saved straight
+away but only showed after a reload.
+
+### Step 6. Asana (about 45 seconds)
+
+**On screen:** Tab 5, **MDR Lead Follow-ups**, Board view.
+
+**What you'll see:** four columns: **Hot - call within 24h**, **Needs a
+conversation**, **Contacted**, **Booked**. *Call Rachel Moore at ATI Physical
+Therapy (Lakewood) (Ana Reyes)* is now in **Contacted**, with a comment.
+
+**Say:** "The Slack click moved the Asana task too. It works the other way as
+well."
+
+Tick the circle on **Call Laura Bennett at Cleveland Animal Protective League
+(Carla Jimenez)**. Then switch to the CRM (tab 6). After about 20 seconds
+Laura's row shows **Contacted** (refresh if it doesn't).
+
+### Step 7. The CRM (about 2 minutes)
+
+**On screen:** Tab 6, http://localhost:3090.
+
+**What you'll see:** the **Leads** page. A coloured strip across the top
+counts leads by verdict (Hot, Needs a conversation, Not a fit, Spam). Below
+it is a table: Business, Verdict, Score, Segment, Rep, Stage, Source,
+Received.
+
+**Say:** "This is a small CRM I built for the team, separate from WordPress.
+Every lead from both sites lands here, already scored and assigned."
+
+1. Point at **Summit Roofing & Gutters**. **Say:** "A roofer used the clinic
+   form. The AI noticed, so it went to Ben, who covers home services, not to
+   the clinic rep."
+2. Click **ATI Physical Therapy (Lakewood)**. Point at **What the AI made of
+   it**, the **Try opening with** box, and **Everything that happened**, a
+   timeline of every step across n8n, Slack and Asana.
+3. Scroll to **Correct the AI or hand it over** (bottom right). Under *The AI
+   said Hot. It should be:* choose **Warm**. A box appears underneath saying
+   *Why? The model reads this next time.* Type
+   `Budget is fine but they only want one location for now.` and click
+   **Correct the verdict**. It shows *Saving…*; after a few seconds the badge
+   at the top says **Warm** with *verdict set by a person*, and the timeline
+   gets a line: *Changed the verdict from Hot to Warm: "…"*. **Say:** "If the
+   AI gets it wrong, anyone can correct it here, and the model reads that
+   correction as an example next time."
+4. Scroll back up and click **Won** in the stage buttons at the top right.
+   It shows *Saving…*, then *Moved to Won. Slack, Asana and the Sheet are
+   updating.*
+5. Switch to Asana (tab 5). In the left sidebar a new project appears,
+   **Onboarding: ATI Physical Therapy (Lakewood)**. Open it. It has six dated
+   tasks: *Kickoff call with Rachel Moore*, *Get access: website, Google
+   Business Profile, Analytics, Search Console*, *Full SEO and speed audit of
+   https://atipt.com*, *Fix the checkup issues (speed, titles, local schema)*,
+   *Set up Google Ads and call tracking*, *30-day results review*.
+
+**Say:** "Winning a client kicks off onboarding automatically."
+
+### Step 8. The Sheet and the emails (about 45 seconds)
+
+**On screen:** Tab 7, the Google Sheet.
+
+- **Leads** tab (bottom of the screen): one row per lead, with Lead ID,
+  Received, Site, Business, Contact, Email, Phone, Website, Segment, Verdict,
+  Score, Assigned to, Stage, Source, Summary, a link to the CRM, and Updated.
+  Rachel's row shows Verdict **Warm** and Stage **Won**. The spam lead isn't
+  in the Sheet, on purpose.
+- **Team** tab: columns Rep, Email, Covers, Slack channel, Role, Active. Five
+  people: Ana Reyes (`healthcare_wellness`), Ben Kowalski (`home_services,
+  retail_ecommerce`), Carla Jimenez (`nonprofit`), Dana Price
+  (`professional_services, restaurant_hospitality, other`), and Marcus Hale,
+  sales manager, whose Covers is `*`, meaning he's the one who gets
+  escalations. Their emails are also `+` addresses that land in your inbox.
+
+**Say:** "Routing is read from this tab for every lead, so changing who covers
+what is a spreadsheet edit, not a code change."
+
+**On screen:** Tab 8, Gmail. Search for `ATI Physical Therapy`. Two emails
+from **Marketing Done Right**:
+- **Your website checkup, ATI Physical Therapy (Lakewood)**: the email Rachel
+  (the customer) gets.
+- **🔥 Hot lead for you: ATI Physical Therapy (Lakewood) (90)**: the email Ana
+  (the rep) gets.
+
+Open both briefly.
+
+### Step 9. Nobody called back: the alert (about 30 seconds)
+
+**On screen:** open a new Chrome tab and go to:
+
+```
+http://localhost:5678/webhook/mdr-followup-now?hours=0.05
+```
+
+This runs the "nobody has called this lead" check right now, treating anything
+older than 3 minutes as overdue. Normally it runs every hour with a 24-hour
+limit. The tab just shows a short "started" message.
+
+Switch to Slack, channel **#mdr-ops**. A **⏰** message appears for each Hot,
+Warm or Needs-a-conversation lead that's still New. If you followed the steps
+above, those are The Joint Chiropractic (Megan Doyle) and Summit Roofing &
+Gutters (Tony Russo), worded like *"Summit Roofing & Gutters came in 40
+minutes ago as needs a conversation, and nobody's reached out yet. It's Ben
+Kowalski's."* Laura's lead won't appear because you ticked her task in step 6.
+Not-a-fit and spam leads never trigger it. A reply also lands in each lead's
+own Slack thread, and Marcus Hale (the manager) gets an email.
+
+**Say:** "If a lead sits too long, the manager hears about it in Slack and by
+email. There's also a daily summary every morning at 8 and an alert if any
+workflow fails."
+
+Each lead is only flagged once, so this step works one time per seed. To
+record it again, repeat A2.
+
+### Step 10. Close (15 seconds)
+
+**Say:** "Everything here runs on one PC: two WordPress sites in Docker with
+MySQL, n8n, a local AI model and Lighthouse. Nothing uses a paid AI service.
+The code and a step-by-step build log are ready to share."
+
+---
+
+## If something goes wrong while recording
+
+| What you see | What it means | What to do |
+|---|---|---|
+| Slack button does nothing, even after a reload | The tunnel window isn't running | Run `start.cmd` again, wait 30 seconds, try again |
+| Form says "Too many tries from this connection" | Each site accepts 6 forms per 10 minutes | Run `node tools/reset-demo.mjs` (clears it), or wait 10 minutes |
+| Results page stuck on "Running your checkup" for over 3 minutes | n8n or Ollama isn't running | Check the n8n window is open; in a terminal, `ollama list` should show `qwen2.5:7b` |
+| Speed shows "not measured" | That website blocked the speed test | Normal for some sites. Use the values above, which were tested |
+| The lead shows up as a duplicate | Same email or website sent before | Run the reset (A2) before each take |
