@@ -239,7 +239,7 @@ add_action('add_meta_boxes', function () {
 add_action('init', function () {
     wp_register_script('mdr-intake', plugins_url('assets/intake.js', __FILE__), [], MDR_VERSION, true);
     $font = (defined('MDR_SITE') && MDR_SITE === 'site-b')
-        ? 'https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap'
+        ? 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
         : 'https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..600&family=Public+Sans:wght@400..700&display=swap';
     wp_register_style('mdr-fonts', $font, [], null);
     wp_register_style('mdr-intake', plugins_url('assets/intake.css', __FILE__), ['mdr-fonts'], MDR_VERSION);
