@@ -1,0 +1,9 @@
+.env
+*.env
+node_modules/
+.next/
+crm/data/
+*.db
+*.sqlite
+.tokens/
+.claude/
