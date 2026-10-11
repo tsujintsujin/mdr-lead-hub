@@ -1,0 +1,13 @@
+# MDR Lead Hub's own tunnel. Only the two webhooks Slack and Asana must reach
+# get through; the n8n editor and every other webhook stay private.
+# Run: cloudflared tunnel --config tunnel\cloudflared.yml run
+# (start.cmd does this). DNS: mdr-hooks.thejobstash.com -> this tunnel
+# (thejobstash.com is the zone cloudflared's cert can write to).
+tunnel: 0ce19fa5-3c29-46ea-a17c-1843ccc0d8d3
+credentials-file: C:\Users\justi\.cloudflared\0ce19fa5-3c29-46ea-a17c-1843ccc0d8d3.json
+
+ingress:
+  - hostname: mdr-hooks.thejobstash.com
+    path: ^/webhook/mdr-(slack|asana)$
+    service: http://localhost:5678
+  - service: http_status:404

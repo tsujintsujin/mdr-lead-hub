@@ -1,0 +1,22 @@
+{
+  "name": "crm",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3090",
+    "build": "next build",
+    "start": "next start -p 3090",
+    "test": "node --test lib/"
+  },
+  "dependencies": {
+    "next": "15.5.27",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}

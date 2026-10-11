@@ -7,3 +7,4 @@ crm/data/
 *.sqlite
 .tokens/
 .claude/
+shots/

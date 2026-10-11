@@ -1,0 +1,210 @@
+{
+  "name": "MDR · Roster",
+  "nodes": [
+    {
+      "id": "8e11a318-d08e-7e10-14dd-33c25f2ebd17",
+      "name": "CRM asks for the roster",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "mdr-roster",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "74faa2c0-f31a-8ff5-88bb-4a979d95d734"
+    },
+    {
+      "id": "f0cd813d-92c3-b068-538c-09cff56cb92d",
+      "name": "Check the CRM key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nconst SECRET = { hmac: '{{MDR_HMAC_SECRET}}', slack: '{{SLACK_SIGNING_SECRET}}', crm: '{{CRM_API_KEY}}' };\n\nconst crypto = require('crypto');\nconst h = $input.first().json.headers || {};\nconst got = String(h['x-mdr-key'] || '');\nconst ok = got.length === SECRET.crm.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(SECRET.crm));\n\nreturn [{ json: { ok, body: $input.first().json.body || {}, query: $input.first().json.query || {}, response: ok ? { ok: true } : { ok: false, error: 'bad key' } } }];"
+      }
+    },
+    {
+      "id": "993a589a-c440-436f-9e30-0f1f227e304d",
+      "name": "From the CRM?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f0df7569-731b-96e5-323c-1d942c7bb526",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d003b11a-888c-a81a-68e5-562af0e9ad60",
+      "name": "Sheet: team roster",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        720,
+        -200
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "1123782870",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "M8QrX9oedUm6DHil",
+          "name": "Google Sheets TheJobStash"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "5ace97d0-6c1c-e4c9-fb51-96e83ce4d530",
+      "name": "Shape the roster",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst reps = $input.all().map((i) => i.json).filter((r) => r.Rep).map((r) => ({\n  name: String(r.Rep).trim(), email: String(r.Email || '').trim(), role: String(r.Role || '').trim(),\n  covers: String(r.Covers || '').split(',').map((s) => s.trim()).filter(Boolean), channel: String(r['Slack channel'] || '').replace(/^#/, ''),\n  active: String(r.Active || '').toLowerCase().startsWith('y'),\n}));\nreturn [{ json: { response: { reps } } }];"
+      }
+    },
+    {
+      "id": "2743db5f-298a-b8f1-12ff-5f19c24c48cf",
+      "name": "Send it back",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "01000571-0c25-efcf-420c-b63388935d9f",
+      "name": "Reply 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    }
+  ],
+  "connections": {
+    "CRM asks for the roster": {
+      "main": [
+        [
+          {
+            "node": "Check the CRM key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the CRM key": {
+      "main": [
+        [
+          {
+            "node": "From the CRM?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From the CRM?": {
+      "main": [
+        [
+          {
+            "node": "Sheet: team roster",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: team roster": {
+      "main": [
+        [
+          {
+            "node": "Shape the roster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape the roster": {
+      "main": [
+        [
+          {
+            "node": "Send it back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
