@@ -27,7 +27,7 @@ small CRM, wired into Google Sheets, Slack, Asana and email.
    - n8n: http://localhost:5678 (workflows named "MDR · …")
    - WordPress admin: `/wp-admin` on either site, user `mdradmin`, password in `.env`
    - Sheet: https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU
-   - Slack: workspace Group 10, channels `#leads-*`, `#mdr-ops`, `#mdr-daily`
+   - Slack: workspace MDR Demo, channels `#leads-*`, `#mdr-ops`, `#mdr-daily`
    - Asana: project "MDR Lead Follow-ups"
 
 ## Useful commands
