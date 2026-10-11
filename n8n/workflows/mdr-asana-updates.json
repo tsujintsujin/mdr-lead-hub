@@ -1,0 +1,368 @@
+{
+  "name": "MDR · Asana updates",
+  "nodes": [
+    {
+      "id": "1b049210-6c9f-0da6-cc4c-fd95f197882d",
+      "name": "Asana event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mdr-asana",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "d16f9ad6-967b-6d97-bb08-fe4b71c0c96a"
+    },
+    {
+      "id": "f1fc6bca-319b-8ea1-7360-9ee4c239e6cc",
+      "name": "Handshake or verify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst crypto = require('crypto');\nconst item = $input.first();\nconst h = item.json.headers || {};\nconst store = $getWorkflowStaticData('global');\nif (h['x-hook-secret']) {                          // Asana's first call when the webhook is created\n  store.secret = h['x-hook-secret'];\n  return [{ json: { handshake: true, secret: h['x-hook-secret'], events: [] } }];\n}\nlet raw;\ntry { raw = await this.helpers.getBinaryDataBuffer(0, 'data'); }\ncatch (e) { raw = Buffer.from((item.binary && item.binary.data && item.binary.data.data) || '', 'base64'); }\nconst want = store.secret ? crypto.createHmac('sha256', store.secret).update(raw).digest('hex') : '';\nconst got = String(h['x-hook-signature'] || '');\nconst ok = !!want && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));\nlet events = [];\nif (ok) { try { events = JSON.parse(raw.toString('utf8')).events || []; } catch (e) {} }\nreturn [{ json: { handshake: false, ok, events } }];"
+      }
+    },
+    {
+      "id": "76d1b99d-f341-5831-5f3b-ad850bf6260e",
+      "name": "Handshake?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d0a69d22-0dc9-5cdb-6a39-cd5be39a6c96",
+              "leftValue": "={{ $json.handshake }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e2de1110-2600-8691-1c42-7e03428b3994",
+      "name": "Echo the secret",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "X-Hook-Secret",
+                "value": "={{ $json.secret }}"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "f85acbbf-a76f-bd0d-899b-804cce92cec3",
+      "name": "Ack",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "f456a357-9824-2c7b-fc1d-0d5a60893603",
+      "name": "Task changes we care about",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst SECTION_TO_STAGE = { [CFG.asanaSections.contacted]: 'contacted', [CFG.asanaSections.booked]: 'booked' };\nconst out = [];\nfor (const e of $('Handshake or verify').first().json.events || []) {\n  if (!e.resource || e.resource.resource_type !== 'task') continue;\n  const who = (e.user && e.user.gid) || '';\n  if (e.action === 'changed' && e.change && e.change.field === 'completed') out.push({ task: e.resource.gid, kind: 'completed' });\n  if (e.action === 'added' && e.parent && e.parent.resource_type === 'section' && SECTION_TO_STAGE[e.parent.gid]) out.push({ task: e.resource.gid, kind: 'section', to: SECTION_TO_STAGE[e.parent.gid] });\n}\nconst seen = new Set();\nreturn out.filter((o) => { const k = o.task + o.kind + (o.to || ''); if (seen.has(k)) return false; seen.add(k); return true; }).map((o) => ({ json: o }));"
+      }
+    },
+    {
+      "id": "67fa3783-17e0-1f1c-45af-06b55dc7836b",
+      "name": "Asana: is it done?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://app.asana.com/api/1.0/tasks/' + $json.task + '?opt_fields=completed,name' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "asanaApi",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "asanaApi": {
+          "id": "4WWD9WueCf96y3km",
+          "name": "MDR Asana"
+        }
+      }
+    },
+    {
+      "id": "2bc82cf7-ac96-ad20-903a-03f3c258ab9f",
+      "name": "CRM: which lead?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:3090/api/lookup",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asana_task",
+              "value": "={{ $('Task changes we care about').item.json.task }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TVA4RYLfQQi74eE4",
+          "name": "MDR CRM API"
+        }
+      }
+    },
+    {
+      "id": "23676b7c-74cd-82a7-d6ce-f451fa7c8829",
+      "name": "Work out the change",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst out = [];\n$input.all().forEach((it, i) => {\n  const lead = it.json.lead;\n  const c = $('Task changes we care about').all()[i].json;\n  const task = $('Asana: is it done?').all()[i].json.data || {};\n  if (!lead) return;\n  let to = null;\n  if (c.kind === 'section') to = c.to;\n  if (c.kind === 'completed' && task.completed && lead.stage === 'new') to = 'contacted';\n  const order = ['new', 'contacted', 'booked', 'won', 'lost'];\n  if (!to || order.indexOf(to) <= order.indexOf(lead.stage)) return;   // never move a lead backwards, and ignore our own echoes\n  out.push({ json: { id: lead.id, patch: { stage: to, ...(lead.first_contact_at ? {} : { first_contact_at: new Date().toISOString() }), event: { type: 'stage', actor: 'Asana: Justin Masiga', detail: { from: lead.stage, to } } },\n    ev: { action: 'stage', lead_id: lead.id, from: lead.stage, to, by: 'Justin Masiga', origin: 'asana' } } });\n});\nreturn out;"
+      }
+    },
+    {
+      "id": "43bd8b11-97d5-9113-07a7-9a8b48457fe1",
+      "name": "CRM: save it",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'http://localhost:3090/api/leads/' + $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TVA4RYLfQQi74eE4",
+          "name": "MDR CRM API"
+        }
+      }
+    },
+    {
+      "id": "4c0c83f7-147d-d727-6943-74f56a0477a1",
+      "name": "Sync everywhere else",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/mdr-crm-event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-MDR-Key",
+              "value": "{{CRM_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Work out the change').item.json.ev) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Asana event": {
+      "main": [
+        [
+          {
+            "node": "Handshake or verify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handshake or verify": {
+      "main": [
+        [
+          {
+            "node": "Handshake?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handshake?": {
+      "main": [
+        [
+          {
+            "node": "Echo the secret",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack": {
+      "main": [
+        [
+          {
+            "node": "Task changes we care about",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task changes we care about": {
+      "main": [
+        [
+          {
+            "node": "Asana: is it done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana: is it done?": {
+      "main": [
+        [
+          {
+            "node": "CRM: which lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: which lead?": {
+      "main": [
+        [
+          {
+            "node": "Work out the change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Work out the change": {
+      "main": [
+        [
+          {
+            "node": "CRM: save it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: save it": {
+      "main": [
+        [
+          {
+            "node": "Sync everywhere else",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

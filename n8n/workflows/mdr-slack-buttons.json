@@ -1,0 +1,381 @@
+{
+  "name": "MDR · Slack buttons",
+  "nodes": [
+    {
+      "id": "60f5b12a-183b-bc8b-a94b-a40beaee90c9",
+      "name": "Slack button clicked",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mdr-slack",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "343b06dc-baa2-c8f7-3d24-98e96b4f7799"
+    },
+    {
+      "id": "3feaf214-512d-dcc7-c04f-66af31825c43",
+      "name": "Check it came from Slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nconst SECRET = { hmac: '{{MDR_HMAC_SECRET}}', slack: '{{SLACK_SIGNING_SECRET}}', crm: '{{CRM_API_KEY}}' };\n\nconst crypto = require('crypto');\nconst item = $input.first();\nlet raw;\ntry { raw = await this.helpers.getBinaryDataBuffer(0, 'data'); }\ncatch (e) { raw = Buffer.from((item.binary && item.binary.data && item.binary.data.data) || '', 'base64'); }\nconst h = item.json.headers || {};\nconst ts = String(h['x-slack-request-timestamp'] || '');\nconst want = 'v0=' + crypto.createHmac('sha256', SECRET.slack).update('v0:' + ts + ':' + raw.toString('utf8')).digest('hex');\nconst got = String(h['x-slack-signature'] || '');\nconst fresh = Math.abs(Date.now() / 1000 - Number(ts)) < 300;\nconst ok = fresh && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));\nlet p = null;\nif (ok) { try { p = JSON.parse((item.json.body && item.json.body.payload) || '{}'); } catch (e) {} }   // n8n already decoded the form body\nconst a = p && p.actions && p.actions[0];\nconst map = { mdr_contacted: { action: 'stage', to: 'contacted' }, mdr_booked: { action: 'stage', to: 'booked' }, mdr_not_fit: { action: 'override', to: 'not_fit' } };\nconst todo = a && map[a.action_id] ? { ...map[a.action_id], lead_id: a.value, user_id: p.user && p.user.id, by: (p.user && (p.user.name || p.user.username)) || 'Someone', origin: 'slack' } : null;\nreturn [{ json: { ok: !!p, todo, response: {}} }];"
+      }
+    },
+    {
+      "id": "0ebb2c99-1399-3ace-ef95-9e324db893dc",
+      "name": "Signed by Slack?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5654c3a9-a97f-6097-20aa-0f503cf314d2",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "32979abf-2926-8b5e-5dc3-16c84faa9b72",
+      "name": "Ack within 3 seconds",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "56e46c98-86e0-1612-e77f-e7783fffe4ce",
+      "name": "Reply 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "71032ea7-3d79-2be7-c3fd-a35ff81c93ae",
+      "name": "A button that changes something?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        -200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f16ce366-b994-5f49-282e-3739325e6047",
+              "leftValue": "={{ !!$('Check it came from Slack').first().json.todo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6057990c-5311-c2ec-3e4e-4853035e07a7",
+      "name": "Slack: who clicked?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -600
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://slack.com/api/users.info",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "user",
+              "value": "={{ $('Check it came from Slack').first().json.todo.user_id }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "2FIWdlgncTBwpb8b",
+          "name": "MDR Slack bot"
+        }
+      }
+    },
+    {
+      "id": "ca36d4e1-82e3-2b19-e81a-88d47f7da17e",
+      "name": "CRM: load the lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -400
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'http://localhost:3090/api/leads/' + $('Check it came from Slack').first().json.todo.lead_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TVA4RYLfQQi74eE4",
+          "name": "MDR CRM API"
+        }
+      }
+    },
+    {
+      "id": "3743b8ad-0d23-1684-5bfa-a029fc3723b0",
+      "name": "Work out the change",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -400
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst t = { ...$('Check it came from Slack').first().json.todo };\ntry { const u = $('Slack: who clicked?').first().json.user; if (u) t.by = (u.profile && u.profile.real_name) || u.real_name || t.by; } catch (e) {}\nconst lead = $input.first().json.lead;\nconst who = 'Slack: ' + t.by;\nlet patch = null, ev = null;\nif (t.action === 'stage' && lead.stage !== t.to) {\n  patch = { stage: t.to, ...(lead.first_contact_at ? {} : { first_contact_at: new Date().toISOString() }), event: { type: 'stage', actor: who, detail: { from: lead.stage, to: t.to } } };\n  ev = { action: 'stage', lead_id: lead.id, from: lead.stage, to: t.to, by: t.by, origin: 'slack' };\n}\nif (t.action === 'override' && lead.verdict !== t.to) {\n  const note = 'Marked not a fit from Slack';\n  patch = { verdict: t.to, verdict_by: 'person', correction: { from: lead.verdict, to: t.to, note, by: t.by }, event: { type: 'override', actor: who, detail: { from: lead.verdict, to: t.to, note } } };\n  ev = { action: 'override', lead_id: lead.id, from: lead.verdict, to: t.to, note, by: t.by, origin: 'slack' };\n}\nreturn patch ? [{ json: { id: lead.id, patch, ev } }] : [];"
+      }
+    },
+    {
+      "id": "eadd81bb-ece9-e9e0-f491-dbd5fdf2b39c",
+      "name": "CRM: save it",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        -400
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'http://localhost:3090/api/leads/' + $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TVA4RYLfQQi74eE4",
+          "name": "MDR CRM API"
+        }
+      }
+    },
+    {
+      "id": "f8f381f2-98e9-1aa8-ddb2-c12d99f69092",
+      "name": "Sync everywhere else",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        -400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5678/webhook/mdr-crm-event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-MDR-Key",
+              "value": "{{CRM_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Work out the change').first().json.ev) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Slack button clicked": {
+      "main": [
+        [
+          {
+            "node": "Check it came from Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check it came from Slack": {
+      "main": [
+        [
+          {
+            "node": "Signed by Slack?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signed by Slack?": {
+      "main": [
+        [
+          {
+            "node": "Ack within 3 seconds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack within 3 seconds": {
+      "main": [
+        [
+          {
+            "node": "A button that changes something?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A button that changes something?": {
+      "main": [
+        [
+          {
+            "node": "Slack: who clicked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: who clicked?": {
+      "main": [
+        [
+          {
+            "node": "CRM: load the lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: load the lead": {
+      "main": [
+        [
+          {
+            "node": "Work out the change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Work out the change": {
+      "main": [
+        [
+          {
+            "node": "CRM: save it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: save it": {
+      "main": [
+        [
+          {
+            "node": "Sync everywhere else",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

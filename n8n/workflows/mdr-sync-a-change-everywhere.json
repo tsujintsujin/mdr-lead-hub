@@ -1,0 +1,897 @@
+{
+  "name": "MDR · Sync a change everywhere",
+  "nodes": [
+    {
+      "id": "1605fe45-afec-0db7-713d-ac0910f802c8",
+      "name": "A lead changed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mdr-crm-event",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "88cbff45-5ff0-573e-92b8-8fb633024ac5"
+    },
+    {
+      "id": "fbf71143-14ab-9a9c-2632-c6061c44b418",
+      "name": "Check the CRM key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nconst SECRET = { hmac: '{{MDR_HMAC_SECRET}}', slack: '{{SLACK_SIGNING_SECRET}}', crm: '{{CRM_API_KEY}}' };\n\nconst crypto = require('crypto');\nconst h = $input.first().json.headers || {};\nconst got = String(h['x-mdr-key'] || '');\nconst ok = got.length === SECRET.crm.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(SECRET.crm));\n\nreturn [{ json: { ok, body: $input.first().json.body || {}, query: $input.first().json.query || {}, response: ok ? { ok: true } : { ok: false, error: 'bad key' } } }];"
+      }
+    },
+    {
+      "id": "778ec549-258a-1b59-05ed-b90fd467bfbe",
+      "name": "Trusted caller?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "502ca994-7a05-c7d7-86a3-7003812dea6e",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3484d077-03a5-6d44-2d93-1cc78dbadf23",
+      "name": "Reply 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "184ba179-040c-3b6d-0ebb-fc276e5ce006",
+      "name": "Reply 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify($json.response || {ok:true}) }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "79465982-e25a-4c99-94bf-46e053aa3104",
+      "name": "CRM: load the lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'http://localhost:3090/api/leads/' + $('Check the CRM key').first().json.body.lead_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TVA4RYLfQQi74eE4",
+          "name": "MDR CRM API"
+        }
+      }
+    },
+    {
+      "id": "d04a0f01-0f47-ec62-8a04-fc9314eaed13",
+      "name": "Sheet: team roster",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "1123782870",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "M8QrX9oedUm6DHil",
+          "name": "Google Sheets TheJobStash"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "6686516e-09cf-7c51-4ec5-c3093b208f21",
+      "name": "Plan the updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "// MDR Lead Hub: the deciding logic used inside the n8n Code nodes.\r\n// Pure functions only (no network), so test.js can check them without n8n.\r\n// build.mjs inlines this file into each Code node that needs it.\r\n\r\nconst LIB = (() => {\r\n  const SEGMENTS = ['healthcare_wellness', 'home_services', 'nonprofit', 'professional_services', 'retail_ecommerce', 'restaurant_hospitality', 'other'];\r\n  const SEGMENT_LABEL = {\r\n    healthcare_wellness: 'Healthcare and wellness', home_services: 'Home services', nonprofit: 'Nonprofit',\r\n    professional_services: 'Professional services', retail_ecommerce: 'Retail and e-commerce',\r\n    restaurant_hospitality: 'Restaurants and hospitality', other: 'Other',\r\n  };\r\n  const VERDICT_LABEL = { hot: 'Hot', warm: 'Warm', talk: 'Needs a conversation', not_fit: 'Not a fit', spam: 'Spam' };\r\n  const VERDICT_EMOJI = { hot: '🔥', warm: '🌤️', talk: '💬', not_fit: '❌', spam: '🗑️' };\r\n\r\n  const LABELS = {\r\n    practice_type: { chiropractic: 'Chiropractic', physical_therapy: 'Physical therapy', med_spa: 'Med spa', dental: 'Dental', massage_wellness: 'Massage or wellness', other_health: 'Another kind of practice' },\r\n    goals: { new_patients: 'More new patients', rank_google: 'Higher on Google', run_ads: 'Google or Facebook ads', new_website: 'A new website', reviews: 'More reviews', donors: 'More donors', volunteers: 'More volunteers', signups: 'More program signups', awareness: 'More awareness' },\r\n    locations: { '1': 'One location', '2_3': 'Two or three locations', '4_plus': 'Four or more locations' },\r\n    budget: { under_500: 'Under $500/mo', '500_1500': '$500–1,500/mo', '1500_5000': '$1,500–5,000/mo', '5000_plus': 'Over $5,000/mo', unsure: 'Budget not set' },\r\n    timeline: { asap: 'Wants to start ASAP', quarter: 'Next three months', exploring: 'Just looking' },\r\n    nonprofit_status: { yes: '501(c)(3): yes', pending: '501(c)(3): applied', no: '501(c)(3): no', unsure: '501(c)(3): not sure' },\r\n    mission: { human_services: 'Human services', education_programs: 'Education programs', health_programs: 'Health programs', arts_culture: 'Arts and culture', environment_animals: 'Environment or animals', community: 'Community development', religious: 'Faith-based', hospital_school_gov: 'Hospital, school or government', other: 'Other mission' },\r\n    grant_status: { no: 'No Ad Grants yet', underused: 'Has Ad Grants, barely used', active: 'Has Ad Grants, running well' },\r\n    staff: { volunteers: 'All volunteers', '1_5': '1–5 staff', '6_25': '6–25 staff', '26_plus': '26+ staff' },\r\n  };\r\n  const label = (group, v) => (LABELS[group] && LABELS[group][v]) || v || '';\r\n\r\n  /* ---------- source: where the visitor came from ---------- */\r\n  function classifySource(t = {}) {\r\n    const src = String(t.utm_source || '').toLowerCase();\r\n    const med = String(t.utm_medium || '').toLowerCase();\r\n    const ref = String(t.referrer || '').toLowerCase();\r\n    const paid = /^(cpc|ppc|paid|paidsearch|paid_social|paidsocial|display)$/.test(med);\r\n    if (t.gclid || (paid && /google/.test(src))) return 'Google Ads';\r\n    if (t.fbclid || /facebook|instagram|meta|fb|ig/.test(src)) return paid || t.fbclid ? 'Facebook/Instagram ads' : 'Social';\r\n    if (/gbp|google_business|gmb|maps/.test(src + ' ' + med)) return 'Google Business Profile';\r\n    if (med === 'email' || /newsletter|mailchimp/.test(src)) return 'Email';\r\n    if (paid) return 'Paid (other)';\r\n    if (/google\\.|bing\\.|duckduckgo\\.|yahoo\\.|ecosia\\./.test(ref)) return 'Organic search';\r\n    if (ref) return 'Referral';\r\n    if (src) return 'Campaign: ' + src;\r\n    return 'Direct';\r\n  }\r\n\r\n  /* ---------- reading the prospect's website ---------- */\r\n  function readWebsite(html, meta = {}) {\r\n    const h = String(html || '');\r\n    const low = h.toLowerCase();\r\n    const pick = (re) => { const m = h.match(re); return m ? m[1].replace(/\\s+/g, ' ').trim() : ''; };\r\n    const title = pick(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);\r\n    const desc = pick(/<meta[^>]+name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']/i) || pick(/<meta[^>]+content=[\"']([^\"']*)[\"'][^>]*name=[\"']description[\"']/i);\r\n    const h1s = (h.match(/<h1[\\s>]/gi) || []).length;\r\n    const viewport = /<meta[^>]+name=[\"']viewport[\"']/i.test(h);\r\n    const ld = (h.match(/<script[^>]+application\\/ld\\+json[^>]*>([\\s\\S]*?)<\\/script>/gi) || []).join(' ');\r\n    const localSchema = /\"@type\"\\s*:\\s*\"?(LocalBusiness|MedicalBusiness|MedicalClinic|Physician|Chiropractor|Dentist|HealthAndBeautyBusiness|DaySpa|MedicalOrganization)/i.test(ld);\r\n    const orgSchema = /\"@type\"\\s*:\\s*\"?(NGO|Organization|NonprofitOrganization|LocalBusiness)/i.test(ld);\r\n    const text = h.replace(/<script[\\s\\S]*?<\\/script>/gi, ' ').replace(/<style[\\s\\S]*?<\\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\\s+/g, ' ').trim();\r\n    const words = text ? text.split(' ').length : 0;\r\n    const links = h.match(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi) || [];\r\n    const booking = /href=[\"']tel:/i.test(h) || links.some((a) => /book|appointment|schedule|request an? (visit|consult)|zocdoc|janeapp|calendly/i.test(a));\r\n    const donate = links.some((a) => /donat|give now|support us|givebutter|paypal\\.com\\/donate/i.test(a));\r\n    let platform = null;\r\n    if (/wp-content|wp-includes/.test(low)) platform = 'WordPress';\r\n    else if (/squarespace/.test(low)) platform = 'Squarespace';\r\n    else if (/wix\\.com|wixstatic/.test(low)) platform = 'Wix';\r\n    else if (/shopify/.test(low)) platform = 'Shopify';\r\n    else if (/webflow/.test(low)) platform = 'Webflow';\r\n    const finalUrl = meta.finalUrl || meta.url || '';\r\n    return {\r\n      reachable: !!meta.ok, status: meta.status || 0, final_url: finalUrl, https: /^https:/i.test(finalUrl),\r\n      ms: meta.ms || null, bytes: h.length, title, description: desc, h1_count: h1s, viewport,\r\n      local_schema: localSchema, org_schema: orgSchema, words, booking_cta: booking, donate_link: donate, platform,\r\n      excerpt: text.slice(0, 600),\r\n    };\r\n  }\r\n\r\n  /** Mobile speed: PageSpeed when it answered, otherwise a rough estimate from response time and page weight. */\r\n  function speedFrom(psi, site) {\r\n    if (psi && psi.ok === true && typeof psi.score === 'number') return { score: psi.score, lcp_s: psi.lcp_s == null ? null : psi.lcp_s, source: 'lighthouse' };\r\n    const cat = psi && psi.lighthouseResult && psi.lighthouseResult.categories && psi.lighthouseResult.categories.performance;\r\n    if (cat && typeof cat.score === 'number') {\r\n      const lcp = psi.lighthouseResult.audits && psi.lighthouseResult.audits['largest-contentful-paint'];\r\n      return { score: Math.round(cat.score * 100), lcp_s: lcp && lcp.numericValue ? Math.round(lcp.numericValue / 100) / 10 : null, source: 'pagespeed' };\r\n    }\r\n    if (!site || !site.reachable || !site.ms) return { score: null, lcp_s: null, source: 'none' };\r\n    // ponytail: crude estimate (server time + weight) only when PageSpeed is rate-limited; a real Lighthouse run replaces it.\r\n    const kb = site.bytes / 1024;\r\n    const est = Math.max(5, Math.min(95, Math.round(100 - site.ms / 40 - kb / 12)));\r\n    return { score: est, lcp_s: null, source: 'estimate' };\r\n  }\r\n\r\n  function buildAudit(variant, f, site, speed, irs) {\r\n    const s = site || {};\r\n    if (variant === 'grant') {\r\n      const missionWords = s.words >= 300;\r\n      const typeOk = f.mission !== 'hospital_school_gov';\r\n      const irsOk = !!(irs && irs.found);\r\n      const checks = [\r\n        { key: 'irs', ok: irsOk, detail: irsOk ? `${irs.name}${irs.city ? ', ' + irs.city : ''}` : (f.nonprofit_status === 'yes' ? 'Not matched by name. An EIN will settle it.' : 'No IRS record found') },\r\n        { key: 'site_https', ok: !!(s.reachable && s.https), detail: !s.reachable ? 'The site did not load' : (s.https ? '' : 'Loads without https') },\r\n        { key: 'mission_content', ok: !!(s.reachable && missionWords), detail: s.reachable ? `About ${s.words} words on the home page` : '' },\r\n        { key: 'org_type', ok: typeOk, detail: typeOk ? '' : 'Google runs separate programs for these' },\r\n      ];\r\n      const passed = checks.filter((c) => c.ok).length;\r\n      const verdict = !typeOk || f.nonprofit_status === 'no' ? 'not_yet' : passed === 4 ? 'likely' : passed >= 2 ? 'almost' : 'not_yet';\r\n      return { reachable: !!s.reachable, speed, checks, irs: irs || { found: false }, public_verdict: verdict, platform: s.platform || null, donate_link: !!s.donate_link };\r\n    }\r\n    const checks = [\r\n      { key: 'title', ok: !!(s.title && s.title.length >= 10 && s.title.length <= 70) },\r\n      { key: 'meta_description', ok: !!(s.description && s.description.length >= 50) },\r\n      { key: 'h1', ok: s.h1_count === 1 },\r\n      { key: 'https', ok: !!s.https },\r\n      { key: 'viewport', ok: !!s.viewport },\r\n      { key: 'local_schema', ok: !!s.local_schema },\r\n    ].map((c) => (s.reachable ? c : { ...c, ok: false }));\r\n    return { reachable: !!s.reachable, speed, checks, booking_cta: !!s.booking_cta, platform: s.platform || null };\r\n  }\r\n\r\n  /** What the visitor sees on the results page. Nothing internal. */\r\n  function publicResult(variant, f, audit) {\r\n    if (variant === 'grant') {\r\n      const irs = audit.irs && audit.irs.found ? { found: true, name: audit.irs.name, city: audit.irs.city, state: audit.irs.state, ein: audit.irs.ein } : { found: false };\r\n      return { org_name: f.org_name, verdict: audit.public_verdict, checks: audit.checks, irs };\r\n    }\r\n    return { business: f.business, website: f.website, reachable: audit.reachable, speed: audit.speed, checks: audit.checks.map(({ key, ok }) => ({ key, ok })) };\r\n  }\r\n\r\n  /* ---------- rules: the cheap, certain decisions first ---------- */\r\n  const DISPOSABLE = /@(mailinator|guerrillamail|10minutemail|tempmail|yopmail|trashmail|sharklasers|getnada|dispostable|maildrop)\\./i;\r\n  const SPAM_WORDS = /\\b(backlinks?|guest post|casino|crypto|forex|viagra|seo services? (for|to) you|rank your (site|website) #?1|link building|buy followers|loan offer)\\b/i;\r\n\r\n  function looksLikeGibberish(s) {\r\n    const t = String(s || '').replace(/[^a-z]/gi, '');\r\n    if (t.length < 4) return false;\r\n    return !/[aeiouy]/i.test(t) || /(.)\\1{4,}/.test(t) || /[bcdfghjklmnpqrstvwxz]{6,}/i.test(t);\r\n  }\r\n\r\n  function zipBand(zip) {\r\n    const z = parseInt(String(zip || '').slice(0, 3), 10);\r\n    if (z >= 440 && z <= 449) return 'ne_ohio';\r\n    if (z >= 430 && z <= 458) return 'ohio';\r\n    return zip ? 'elsewhere' : 'unknown';\r\n  }\r\n\r\n  function rules(variant, f, audit) {\r\n    const notes = [];\r\n    const msg = String(f.message || '');\r\n    const urls = (msg.match(/https?:\\/\\//gi) || []).length;\r\n    const name = variant === 'grant' ? f.org_name : f.business;\r\n    if (DISPOSABLE.test(f.email || '')) return { hard: 'spam', points: 0, notes: ['Throwaway email address'] };\r\n    if (SPAM_WORDS.test(msg) || urls > 1) return { hard: 'spam', points: 0, notes: ['Message reads like a sales pitch or link spam'] };\r\n    if (looksLikeGibberish(name) && looksLikeGibberish(f.name)) return { hard: 'spam', points: 0, notes: ['Name and business look like keyboard mashing'] };\r\n\r\n    let pts = 0;\r\n    let hard = null;\r\n    if (variant === 'grant') {\r\n      if (f.mission === 'hospital_school_gov') { hard = 'not_fit'; notes.push('Hospitals, schools and government agencies are excluded from Ad Grants'); }\r\n      if (f.nonprofit_status === 'no') { hard = 'not_fit'; notes.push('No 501(c)(3) status, which Ad Grants requires'); }\r\n      pts += { yes: 25, pending: 10, unsure: 8, no: 0 }[f.nonprofit_status] || 0;\r\n      if (audit.irs && audit.irs.found) { pts += 15; notes.push('Found in IRS records'); }\r\n      else if (f.nonprofit_status === 'yes') { pts += 5; notes.push('Says 501(c)(3) but IRS lookup did not match'); }\r\n      pts += { no: 12, underused: 15, active: 5 }[f.grant_status] || 0;\r\n      if (f.grant_status === 'underused') notes.push('Already has Ad Grants and is wasting it: management opportunity');\r\n      pts += { volunteers: 3, '1_5': 7, '6_25': 10, '26_plus': 10 }[f.staff] || 0;\r\n      if (audit.reachable && audit.checks.find((c) => c.key === 'site_https' && c.ok)) pts += 5;\r\n      else notes.push('Website needs work before Google will approve it');\r\n      return { hard, points: Math.min(70, pts), notes };\r\n    }\r\n\r\n    const band = zipBand(f.zip);\r\n    pts += { ne_ohio: 20, ohio: 12, elsewhere: 5, unknown: 5 }[band];\r\n    notes.push({ ne_ohio: 'Inside MDR’s Northeast Ohio area', ohio: 'Ohio, outside the core area', elsewhere: 'Outside Ohio', unknown: 'No location' }[band]);\r\n    pts += { '5000_plus': 20, '1500_5000': 17, '500_1500': 11, unsure: 6, under_500: 2 }[f.budget] || 0;\r\n    pts += { asap: 15, quarter: 9, exploring: 3 }[f.timeline] || 0;\r\n    let opp = 0;\r\n    const sp = audit.speed && audit.speed.score;\r\n    if (typeof sp === 'number') { if (sp < 50) opp += 8; else if (sp < 90) opp += 5; }\r\n    const missing = audit.checks.filter((c) => !c.ok).length;\r\n    if (missing >= 2) opp += 5;\r\n    if (audit.reachable && !audit.booking_cta) opp += 2;\r\n    pts += Math.min(15, opp);\r\n    if (opp >= 8) notes.push('Website has clear problems MDR can fix');\r\n    if (f.budget === 'under_500' && f.timeline === 'exploring') { hard = 'not_fit'; notes.push('Under $500 a month and only looking around'); }\r\n    return { hard, points: Math.min(70, pts), notes };\r\n  }\r\n\r\n  /* ---------- the model's part ---------- */\r\n  const AI_SCHEMA = {\r\n    type: 'object',\r\n    properties: {\r\n      segment: { type: 'string', enum: SEGMENTS },\r\n      size: { type: 'string', enum: ['solo', 'small', 'multi_location', 'unknown'] },\r\n      intent: { type: 'integer', minimum: 0, maximum: 30 },\r\n      confidence: { type: 'number', minimum: 0, maximum: 1 },\r\n      vendor_pitch: { type: 'boolean' },\r\n      summary: { type: 'string' },\r\n      reasons: { type: 'array', items: { type: 'string' }, maxItems: 4 },\r\n      opening_line: { type: 'string' },\r\n      red_flags: { type: 'array', items: { type: 'string' }, maxItems: 3 },\r\n    },\r\n    required: ['segment', 'size', 'intent', 'confidence', 'vendor_pitch', 'summary', 'reasons', 'opening_line', 'red_flags'],\r\n  };\r\n\r\n  function describeLead(variant, f, audit, source) {\r\n    const lines = [];\r\n    if (variant === 'grant') {\r\n      lines.push(`Form: Google Ad Grants eligibility check (nonprofits)`);\r\n      lines.push(`Organization: ${f.org_name} (${f.state}), website ${f.website}`);\r\n      lines.push(`${label('nonprofit_status', f.nonprofit_status)}. Mission: ${label('mission', f.mission)}. ${label('grant_status', f.grant_status)}. Staff: ${label('staff', f.staff)}.`);\r\n      lines.push(`Wants: ${(f.goals || []).map((g) => label('goals', g)).join(', ')}`);\r\n      lines.push(`IRS lookup: ${audit.irs && audit.irs.found ? `found ${audit.irs.name}, ${audit.irs.city || ''} ${audit.irs.state || ''}` : 'no match'}`);\r\n      lines.push(`Contact: ${f.name}${f.role ? ', ' + f.role : ''}`);\r\n    } else {\r\n      lines.push(`Form: website checkup for clinics and practices`);\r\n      lines.push(`Business: ${f.business}, type picked: ${label('practice_type', f.practice_type)}, ZIP ${f.zip}, website ${f.website}`);\r\n      lines.push(`${label('locations', f.locations)}. ${label('budget', f.budget)}. ${label('timeline', f.timeline)}.`);\r\n      lines.push(`Wants: ${(f.goals || []).map((g) => label('goals', g)).join(', ')}`);\r\n      lines.push(`Contact: ${f.name}`);\r\n    }\r\n    const sp = audit.speed && audit.speed.score;\r\n    lines.push(`Website: ${audit.reachable ? `loads${typeof sp === 'number' ? `, mobile speed ${sp}/100` : ''}, ${audit.checks.filter((c) => c.ok).length}/${audit.checks.length} basics in place${audit.platform ? ', built on ' + audit.platform : ''}` : 'did not load'}`);\r\n    lines.push(`Came from: ${source}`);\r\n    lines.push(`Their message: ${f.message ? '\"' + String(f.message).slice(0, 800) + '\"' : '(none)'}`);\r\n    return lines.join('\\n');\r\n  }\r\n\r\n  function buildPrompt(variant, f, audit, source, siteExcerpt, examples) {\r\n    const system = [\r\n      'You qualify inbound leads for Marketing Done Right (MDR), a digital marketing agency in Cleveland, Ohio.',\r\n      'MDR sells SEO, Google Ads (including managing Google Ad Grants for nonprofits), social media ads, and website design.',\r\n      'Their best clients are local businesses in Northeast Ohio, especially chiropractors, physical therapists and wellness clinics, home service companies, and nonprofits.',\r\n      'Read the lead and answer ONLY with the JSON object asked for.',\r\n      'segment: the kind of business it really is, judged from the name, the website text and the message, not just the form they used. A roofing company that used the clinic form is home_services.',\r\n      'size: solo (one person or one small office), small, multi_location, or unknown.',\r\n      'intent: 0 to 30, how ready they are to buy soon. Specific problems, deadlines, and budget talk score high. Vague curiosity scores low.',\r\n      'confidence: 0 to 1, how sure you are about this read. Low when the message is empty, contradicts the form, or the business is unclear.',\r\n      'vendor_pitch: true only if they are trying to sell something TO MDR.',\r\n      'summary: one sentence a busy sales rep can read in three seconds.',\r\n      'reasons: up to 4 short reasons for your read, each under 15 words, concrete.',\r\n      'opening_line: the first sentence the rep should say or write to them, specific to their situation, warm, no hype, no exclamation marks.',\r\n      'red_flags: anything a rep should know before calling (empty list if none).',\r\n    ].join('\\n');\r\n    const ex = (examples || []).slice(0, 5).map((e) =>\r\n      `- ${e.business} (${e.segment || '?'}): the model said \"${e.model_said}\", a person changed it to \"${e.person_said}\"${e.why ? ' because: ' + e.why : ''}`).join('\\n');\r\n    const user = [\r\n      describeLead(variant, f, audit, source),\r\n      siteExcerpt ? `\\nText from their home page: \"${String(siteExcerpt).slice(0, 500)}\"` : '',\r\n      ex ? `\\nRecent corrections from MDR's team. Learn from them:\\n${ex}` : '',\r\n    ].join('\\n');\r\n    return { system, user, schema: AI_SCHEMA };\r\n  }\r\n\r\n  function parseAi(raw) {\r\n    let o = raw;\r\n    if (typeof raw === 'string') { try { o = JSON.parse(raw); } catch (e) { return null; } }\r\n    if (!o || typeof o !== 'object') return null;\r\n    const clamp = (n, a, b) => Math.max(a, Math.min(b, Number.isFinite(+n) ? +n : a));\r\n    return {\r\n      segment: SEGMENTS.includes(o.segment) ? o.segment : 'other',\r\n      size: ['solo', 'small', 'multi_location', 'unknown'].includes(o.size) ? o.size : 'unknown',\r\n      intent: Math.round(clamp(o.intent, 0, 30)),\r\n      confidence: clamp(o.confidence, 0, 1),\r\n      vendor_pitch: o.vendor_pitch === true,\r\n      summary: String(o.summary || '').slice(0, 300),\r\n      reasons: (Array.isArray(o.reasons) ? o.reasons : []).map(String).slice(0, 4),\r\n      opening_line: String(o.opening_line || '').slice(0, 300),\r\n      red_flags: (Array.isArray(o.red_flags) ? o.red_flags : []).map(String).filter(Boolean).slice(0, 3),\r\n    };\r\n  }\r\n\r\n  /* ---------- the verdict ---------- */\r\n  function decide(variant, f, rule, ai) {\r\n    const formSegment = variant === 'grant' ? 'nonprofit' : 'healthcare_wellness';\r\n    if (rule.hard === 'spam') return { verdict: 'spam', score: 0, by: 'rules', segment: formSegment, why: rule.notes };\r\n    if (!ai) {\r\n      // Model unavailable: rules alone, and a person looks at it.\r\n      return { verdict: rule.hard || 'talk', score: rule.points, by: 'rules', segment: formSegment, why: [...rule.notes, 'The AI step did not answer, so a person should look at this one'] };\r\n    }\r\n    if (ai.vendor_pitch) return { verdict: 'spam', score: 0, by: 'ai', segment: ai.segment, why: ['They are selling to MDR, not buying', ...ai.reasons] };\r\n    const score = Math.max(0, Math.min(100, rule.points + ai.intent));\r\n    const why = [...ai.reasons, ...rule.notes].slice(0, 6);\r\n    if (rule.hard === 'not_fit') return { verdict: 'not_fit', score, by: 'rules', segment: ai.segment, why };\r\n    const mismatch = variant === 'practice' && ai.segment !== 'healthcare_wellness' && ai.confidence >= 0.5;\r\n    if (mismatch) return { verdict: 'talk', score, by: 'ai', segment: ai.segment, why: [`Used the clinic form but looks like ${SEGMENT_LABEL[ai.segment].toLowerCase()}`, ...why].slice(0, 6) };\r\n    if (ai.confidence < 0.55) return { verdict: 'talk', score, by: 'ai', segment: ai.segment, why: ['Not enough to go on, a short call will settle it', ...why].slice(0, 6) };\r\n    const verdict = score >= 70 ? 'hot' : score >= 45 ? 'warm' : score >= 30 ? 'talk' : 'not_fit';\r\n    return { verdict, score, by: 'ai', segment: ai.segment, why };\r\n  }\r\n\r\n  /* ---------- routing ---------- */\r\n  function parseRoster(rows) {\r\n    return (rows || []).filter((r) => r && r.Rep && String(r.Active || '').toLowerCase().startsWith('y')).map((r) => ({\r\n      name: String(r.Rep).trim(), email: String(r.Email || '').trim(), role: String(r.Role || '').trim(),\r\n      covers: String(r.Covers || '').split(',').map((s) => s.trim()).filter(Boolean), channel: String(r['Slack channel'] || '').replace(/^#/, '').trim(),\r\n    }));\r\n  }\r\n\r\n  function pickRep(roster, segment, open = {}) {\r\n    const reps = roster.filter((r) => !r.covers.includes('*'));\r\n    let pool = reps.filter((r) => r.covers.includes(segment));\r\n    if (!pool.length) pool = reps.filter((r) => r.covers.includes('other'));\r\n    if (!pool.length) pool = roster.filter((r) => r.covers.includes('*'));\r\n    if (!pool.length) return null;\r\n    return pool.slice().sort((a, b) => (open[a.name] || 0) - (open[b.name] || 0))[0]; // stable: ties keep sheet order\r\n  }\r\n  const manager = (roster) => roster.find((r) => r.covers.includes('*')) || null;\r\n  const firstName = (n) => String(n || '').split(' ')[0];\r\n\r\n  return { SEGMENTS, SEGMENT_LABEL, VERDICT_LABEL, VERDICT_EMOJI, LABELS, label, classifySource, readWebsite, speedFrom, buildAudit, publicResult, rules, zipBand, looksLikeGibberish, buildPrompt, describeLead, parseAi, decide, parseRoster, pickRep, manager, firstName, AI_SCHEMA };\r\n})();\r\n\r\n\n// MDR Lead Hub: Slack blocks and email bodies. Wording comes from n8n/copy.md (humanized).\n// Pure functions; inlined into the n8n Code nodes by build.mjs.\n\nconst MSG = (() => {\n  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n  const slackEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n  const CHECK_LABEL = {\n    title: 'Page title', meta_description: 'Meta description', h1: 'One clear main heading', https: 'Secure (https)',\n    viewport: 'Works on phones', local_schema: 'Local business details for Google',\n    irs: 'Found in IRS nonprofit records', site_https: 'Website loads on https', mission_content: 'Enough about the mission on the site', org_type: 'An organization type Google accepts',\n  };\n  const STAMP = { likely: 'likely eligible', almost: 'almost there', not_yet: 'not eligible yet' };\n  const band = (s) => (s == null ? 'we couldn’t measure it' : s >= 90 ? 'quick' : s >= 50 ? 'middling' : 'slow enough to lose people');\n\n  function speedLine(audit) {\n    if (!audit.reachable) return 'the site didn’t load for us';\n    const s = audit.speed || {};\n    return s.score == null ? 'speed not measured' : `mobile speed ${s.score}/100${s.source === 'estimate' ? ' (estimate)' : ''}`;\n  }\n  function checksLine(audit) {\n    const miss = (audit.checks || []).filter((c) => !c.ok).map((c) => CHECK_LABEL[c.key] || c.key);\n    return miss.length ? `Missing: ${miss.join(', ').toLowerCase()}` : 'All the basics are in place';\n  }\n\n  /* ---------- Slack ---------- */\n  function slackLead(L, x) {\n    // L: lead fields; x: { lib, crmUrl, rep, status }\n    const v = L.verdict;\n    const head = `${x.lib.VERDICT_EMOJI[v]} ${x.lib.VERDICT_LABEL[v]} lead: ${L.business}`;\n    const f = L.fields || {};\n    const L2 = x.lib.label;\n    const facts = L.variant === 'grant'\n      ? [`*Contact*\\n${slackEsc(f.name)}${f.role ? ', ' + slackEsc(f.role) : ''}`, `*Assigned to*\\n${slackEsc(x.rep ? x.rep.name : 'Nobody yet')}`, `*Status*\\n${L2('nonprofit_status', f.nonprofit_status)}`, `*Ad Grants*\\n${L2('grant_status', f.grant_status)}`]\n      : [`*Contact*\\n${slackEsc(f.name)}`, `*Assigned to*\\n${slackEsc(x.rep ? x.rep.name : 'Nobody yet')}`, `*Budget*\\n${L2('budget', f.budget)}`, `*Timing*\\n${L2('timeline', f.timeline)}`];\n    const blocks = [\n      { type: 'header', text: { type: 'plain_text', text: head.slice(0, 150), emoji: true } },\n      { type: 'context', elements: [{ type: 'mrkdwn', text: `Score *${L.score}*. ${x.lib.SEGMENT_LABEL[L.segment] || L.segment}. Came from ${slackEsc(L.source)}. <${x.crmUrl}|${L.id}>` }] },\n      { type: 'section', fields: facts.map((t) => ({ type: 'mrkdwn', text: t })) },\n    ];\n    if (L.ai && L.ai.summary) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*AI read:* ${slackEsc(L.ai.summary)}` } });\n    if (L.why && L.why.length) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: L.why.map((w) => `• ${slackEsc(w)}`).join('\\n') } });\n    if (L.ai && L.ai.opening_line) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*Opening line:* _${slackEsc(L.ai.opening_line)}_` } });\n    if (x.status) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: x.status }] });\n    const done = ['won', 'lost'].includes(L.stage);\n    if (!done) {\n      blocks.push({\n        type: 'actions', block_id: 'lead_actions',\n        elements: [\n          L.stage === 'new' ? { type: 'button', action_id: 'mdr_contacted', text: { type: 'plain_text', text: 'Mark contacted' }, style: 'primary', value: L.id } : null,\n          L.stage !== 'booked' ? { type: 'button', action_id: 'mdr_booked', text: { type: 'plain_text', text: 'Booked a call' }, value: L.id } : null,\n          L.verdict !== 'not_fit' ? {\n            type: 'button', action_id: 'mdr_not_fit', text: { type: 'plain_text', text: 'Not a fit' }, style: 'danger', value: L.id,\n            confirm: { title: { type: 'plain_text', text: 'Mark as not a fit?' }, text: { type: 'mrkdwn', text: 'This corrects the AI’s verdict and teaches it for next time.' }, confirm: { type: 'plain_text', text: 'Not a fit' }, deny: { type: 'plain_text', text: 'Cancel' } },\n          } : null,\n          { type: 'button', action_id: 'mdr_open', text: { type: 'plain_text', text: 'Open in CRM' }, url: x.crmUrl, value: L.id },\n        ].filter(Boolean),\n      });\n    }\n    return { text: `${head} (score ${L.score})`, blocks };\n  }\n\n  /* ---------- email shell ---------- */\n  function shell(bodyHtml) {\n    return `<!doctype html><html><body style=\"margin:0;padding:24px;background:#f3f5f4;font-family:Arial,Helvetica,sans-serif;color:#16302E;font-size:15px;line-height:1.55\">\n<div style=\"max-width:560px;margin:0 auto;background:#fff;border:1px solid #d9e2df;border-radius:10px;padding:28px\">${bodyHtml}</div></body></html>`;\n  }\n  const p = (s) => `<p style=\"margin:0 0 14px\">${s}</p>`;\n  const ul = (items) => `<ul style=\"margin:0 0 16px;padding-left:20px\">${items.map((i) => `<li style=\"margin:0 0 6px\">${i}</li>`).join('')}</ul>`;\n  const btn = (href, text) => `<p style=\"margin:20px 0\"><a href=\"${esc(href)}\" style=\"display:inline-block;background:#3E7C74;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:bold\">${esc(text)}</a></p>`;\n\n  function repEmail(L, x) {\n    const f = L.fields || {};\n    const subj = `${x.lib.VERDICT_EMOJI[L.verdict]} ${x.lib.VERDICT_LABEL[L.verdict]} lead for you: ${L.business} (${L.score})`;\n    const html = [\n      p(`Hi ${esc(x.lib.firstName(x.rep.name))},`),\n      p(`<strong>${esc(L.business)}</strong> just came through ${esc(x.siteName)}, and it’s landed on your desk.`),\n      L.ai && L.ai.summary ? p(`The short read: ${esc(L.ai.summary)}`) : '',\n      L.why && L.why.length ? p('Why it scored that way:') + ul(L.why.map(esc)) : '',\n      L.ai && L.ai.opening_line ? p(`A good way in, maybe: <em>“${esc(L.ai.opening_line)}”</em>`) : '',\n      p(`Their site right now: ${esc(speedLine(L.audit))}. ${esc(checksLine(L.audit))}.`),\n      L.ai && L.ai.red_flags && L.ai.red_flags.length ? p(`Heads up before you call: ${esc(L.ai.red_flags.join('; '))}`) : '',\n      p(`Contact: ${esc(f.name)}, <a href=\"mailto:${esc(f.email)}\">${esc(f.email)}</a>${f.phone ? ', ' + esc(f.phone) : ''}`),\n      btn(x.crmUrl, `Open ${L.id} in the CRM`),\n      x.asanaDue ? p(`There’s an Asana task waiting too, due ${esc(x.asanaDue)}.`) : '',\n      `<p style=\"margin:18px 0 0;color:#5B716E;font-size:13px\">MDR Lead Hub</p>`,\n    ].join('');\n    return { subject: subj, html: shell(html) };\n  }\n\n  function prospectEmail(L, x) {\n    const f = L.fields || {};\n    const first = esc(x.lib.firstName(f.name));\n    const a = L.audit || {};\n    const sign = `<p style=\"margin:18px 0 0\">Marketing Done Right, Cleveland</p>`;\n    if (L.variant === 'grant') {\n      const stamp = STAMP[a.public_verdict] || STAMP.almost;\n      const subject = `Your Ad Grants check, ${f.org_name}`;\n      const list = ul((a.checks || []).map((c) => `${c.ok ? '✓' : '✕'} ${esc(CHECK_LABEL[c.key] || c.key)}${c.detail ? ` <span style=\"color:#5B716E\">(${esc(c.detail)})</span>` : ''}`));\n      if (L.verdict === 'not_fit') {\n        const noStatus = f.nonprofit_status === 'no';\n        const excluded = f.mission === 'hospital_school_gov';\n        const reason = excluded ? 'Google keeps hospitals, schools and government agencies out of Ad Grants' : noStatus ? 'Ad Grants needs 501(c)(3) status, and you told us you don’t have it yet' : 'the checks below came back short';\n        return { subject, html: shell([\n          p(`Hi ${first},`), p(`Thanks for checking. Right now ${esc(f.org_name)} doesn’t qualify for Google Ad Grants. The reason: ${esc(reason)}.`), list,\n          noStatus ? p('Once your 501(c)(3) status comes through, give the check another go. Two minutes, tops.') : '',\n          excluded ? p('Google runs separate programs for hospitals, schools and government agencies, so Ad Grants isn’t really your road.') : '',\n          p('Still want a hand with search ads or your website? Reply here and we’ll talk it through.'), sign].join('')) };\n      }\n      return { subject, html: shell([\n        p(`Hi ${first},`), p(`Here’s where ${esc(f.org_name)} stands with Google Ad Grants: <strong>${esc(stamp)}</strong>.`), list,\n        x.rep ? p(`${esc(x.rep.name)} looks after Ad Grants accounts at Marketing Done Right and will email you within one business day about next steps.`) : '', sign].join('')) };\n    }\n    const subject = `Your website checkup, ${f.business}`;\n    const s = a.speed || {};\n    const okN = (a.checks || []).filter((c) => c.ok).length;\n    const miss = (a.checks || []).filter((c) => !c.ok).map((c) => CHECK_LABEL[c.key]);\n    const results = a.reachable\n      ? ul([`Mobile speed: <strong>${s.score == null ? 'not measured' : s.score + '/100'}</strong>, ${esc(band(s.score))}`, `Google basics: <strong>${okN} of ${(a.checks || []).length}</strong> in place${miss.length ? '. Missing: ' + esc(miss.join(', ').toLowerCase()) : ''}`])\n      : p(`We couldn’t open ${esc(f.website)}. It may be down, or it may block automated visits.`);\n    if (L.verdict === 'not_fit') {\n      return { subject, html: shell([\n        p(`Hi ${first},`), p('Thanks for running the checkup. Your results are below, and they’re yours to keep, whatever you decide.'), results,\n        p('To be straight with you, going by what you told us, a full agency retainer probably isn’t the right spend for you just now. Three things you can do yourself that tend to move the needle most: fill your Google Business Profile out completely, ask happy patients for reviews, and make your phone number tappable at the top of every page.'),\n        p('If things change down the road, run the checkup again or reply here. We’d be glad to hear from you.'), sign].join('')) };\n    }\n    return { subject, html: shell([\n      p(`Hi ${first},`), p(`Thanks for running the checkup. Here’s the gist of what we saw on ${esc(String(f.website || '').replace(/^https?:\\/\\//, ''))}:`), results,\n      x.rep ? p(`${esc(x.rep.name)} works with clinics here at Marketing Done Right, and they’ll email you within one business day to go through it properly. Anything urgent? Just hit reply.`) : '', sign].join('')) };\n  }\n\n  return { slackLead, repEmail, prospectEmail, speedLine, checksLine, CHECK_LABEL, esc };\n})();\n\n\nconst CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst ev = $('Check the CRM key').first().json.body;           // { action, lead_id, from, to, note, by, origin }\nconst lead = $('CRM: load the lead').first().json.lead;\nconst roster = LIB.parseRoster($('Sheet: team roster').all().map((i) => i.json));\nconst crmUrl = CFG.crmPublic + '/leads/' + lead.id;\nconst stamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });\nconst by = ev.by || 'Someone';\nconst where = ev.origin === 'slack' ? 'in Slack' : ev.origin === 'asana' ? 'in Asana' : 'in the CRM';\nconst STAGE = { new: 'New', contacted: 'Contacted', booked: 'Booked', won: 'Won', lost: 'Lost' };\nconst plan = { lead, crmUrl, asana: [], emails: [], onboarding: false, log: [] };\nlet status = '', thread = '';\nif (ev.action === 'stage') {\n  const icon = { contacted: '📞', booked: '📅', won: '🏆', lost: '🪦', new: '↩️' }[ev.to] || '•';\n  status = icon + ' ' + STAGE[ev.to] + ', by ' + by + ' ' + where + ', ' + stamp;\n  thread = by + ' moved this from ' + STAGE[ev.from] + ' to ' + STAGE[ev.to] + ' ' + where + '.';\n  if (lead.asana_task_gid && ev.origin !== 'asana') {\n    const t = lead.asana_task_gid;\n    if (ev.to === 'contacted') plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/sections/' + CFG.asanaSections.contacted + '/addTask', body: { data: { task: t } } });\n    if (ev.to === 'booked') plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/sections/' + CFG.asanaSections.booked + '/addTask', body: { data: { task: t } } });\n    if (ev.to === 'won' || ev.to === 'lost') plan.asana.push({ method: 'PUT', url: 'https://app.asana.com/api/1.0/tasks/' + t, body: { data: { completed: true } } });\n    plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + t + '/stories', body: { data: { text: thread + ' ' + crmUrl } } });\n  }\n  if (ev.to === 'won') plan.onboarding = true;\n  plan.log.push(STAGE[ev.to] + ' in Slack, Asana and the Sheet');\n}\nif (ev.action === 'override') {\n  status = '✏️ ' + by + ' changed the verdict to ' + LIB.VERDICT_LABEL[ev.to] + ' ' + where + (ev.note ? ': “' + ev.note + '”' : '') + ', ' + stamp;\n  thread = by + ' changed the AI’s verdict from ' + LIB.VERDICT_LABEL[ev.from] + ' to ' + LIB.VERDICT_LABEL[ev.to] + (ev.note ? ' because: ' + ev.note : '') + '. Saved as an example for the model.';\n  if (lead.asana_task_gid && ['not_fit', 'spam'].includes(ev.to) && ev.origin !== 'asana') {\n    plan.asana.push({ method: 'PUT', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid, body: { data: { completed: true } } });\n    plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid + '/stories', body: { data: { text: thread } } });\n  }\n  plan.log.push('Verdict change pushed to Slack, Asana and the Sheet');\n}\nif (ev.action === 'reassign') {\n  const rep = roster.find((r) => r.name === ev.to);\n  status = '🔁 Handed to ' + ev.to + ' by ' + by + ', ' + stamp;\n  thread = by + ' handed this lead to ' + ev.to + (ev.from ? ' (was ' + ev.from + ')' : '') + '.';\n  if (rep && rep.email) {\n    const e = MSG.repEmail({ ...lead, why: (lead.ai && lead.ai.reasons) || [] }, { lib: LIB, rep, crmUrl, siteName: CFG.siteNames[lead.site] });\n    plan.emails.push({ sender: { name: 'Marketing Done Right', email: CFG.sender }, to: [{ email: rep.email, name: rep.name }], subject: 'Handed to you: ' + e.subject.replace(/^.*?lead for you: /, ''), htmlContent: e.html });\n  }\n  if (lead.asana_task_gid) plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid + '/stories', body: { data: { text: thread } } });\n  plan.log.push('Handover sent to ' + ev.to);\n}\nconst rep = roster.find((r) => r.name === lead.assignee) || null;\nif (lead.slack_ts && lead.slack_channel) {\n  const m = MSG.slackLead({ ...lead, why: (lead.ai && lead.ai.reasons) || [] }, { lib: LIB, crmUrl, rep, status });\n  plan.slackUpdate = { channel: lead.slack_channel, ts: lead.slack_ts, text: m.text, blocks: m.blocks };\n  plan.slackThread = { channel: lead.slack_channel, thread_ts: lead.slack_ts, text: thread, unfurl_links: false };\n}\nplan.sheetRow = {\n  'Lead ID': lead.id, Verdict: LIB.VERDICT_LABEL[lead.verdict] || '', Stage: STAGE[lead.stage] || lead.stage, 'Assigned to': lead.assignee || '',\n  Updated: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),\n};\nif (plan.onboarding) {\n  const f = lead.fields || {};\n  const day = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10);\n  plan.project = { data: { name: 'Onboarding: ' + lead.business, workspace: CFG.asanaWorkspace, default_view: 'list', notes: 'Won ' + stamp + ' by ' + (lead.assignee || by) + '. Lead ' + lead.id + ': ' + crmUrl } };\n  plan.projectTasks = (lead.variant === 'grant' ? [\n    ['Kickoff call with ' + (f.name || 'the contact'), 1], ['Confirm 501(c)(3) letter and Google for Nonprofits account', 2], ['Apply for (or take over) the Ad Grants account', 4],\n    ['Build mission-focused campaigns and conversion tracking', 7], ['Compliance check: 5% CTR, conversions, account structure', 14], ['First monthly report to ' + (f.name || 'the client'), 30],\n  ] : [\n    ['Kickoff call with ' + (f.name || 'the contact'), 1], ['Get access: website, Google Business Profile, Analytics, Search Console', 2], ['Full SEO and speed audit of ' + (lead.website || 'the site'), 5],\n    ['Fix the checkup issues (speed, titles, local schema)', 10], ['Set up Google Ads and call tracking', 10], ['30-day results review', 30],\n  ]).map(([name, d]) => ({ name, due_on: day(d) }));\n}\nreturn [{ json: plan }];"
+      }
+    },
+    {
+      "id": "48c7844a-d5de-a5be-6157-63c3c57a09b9",
+      "name": "Slack message to update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        -200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5b4f9caf-fe9c-d05d-fa44-4f7a15e5aec7",
+              "leftValue": "={{ !!$json.slackUpdate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ed7f7348-e189-f098-9fc8-2d32baacde2c",
+      "name": "Slack: refresh the lead message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        -400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.update",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan the updates').first().json.slackUpdate) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "2FIWdlgncTBwpb8b",
+          "name": "MDR Slack bot"
+        }
+      }
+    },
+    {
+      "id": "543a1552-48f6-2696-d219-540ddbb889da",
+      "name": "Slack: note it in the thread",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        -400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan the updates').first().json.slackThread) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "2FIWdlgncTBwpb8b",
+          "name": "MDR Slack bot"
+        }
+      }
+    },
+    {
+      "id": "3640fcae-275c-c2fa-2c40-d67b8434043f",
+      "name": "Asana changes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        -200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fe42f175-74ba-cf4a-592e-8a2bd49bdae3",
+              "leftValue": "={{ $('Plan the updates').first().json.asana.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e50dccf0-58ef-209b-56ba-82394773302b",
+      "name": "Asana steps",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -400
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nreturn $('Plan the updates').first().json.asana.map((a) => ({ json: a }));"
+      }
+    },
+    {
+      "id": "0fb212a9-b8d4-5141-f8a8-8ce49019861a",
+      "name": "Asana: apply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        -400
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "asanaApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "asanaApi": {
+          "id": "4WWD9WueCf96y3km",
+          "name": "MDR Asana"
+        }
+      }
+    },
+    {
+      "id": "352b17a4-c2da-79cf-b5e3-24f04a4fe139",
+      "name": "Asana done",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        -400
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nreturn [{ json: { asana: $input.all().length } }];"
+      }
+    },
+    {
+      "id": "82810b34-0e7f-5d2f-0400-6e33ab223d72",
+      "name": "Won? Start onboarding",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3360,
+        -200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "190b6c80-7b50-0da5-2247-6399acf46708",
+              "leftValue": "={{ $('Plan the updates').first().json.onboarding }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4b21ca10-4e15-b8d7-8bf5-7405869280ff",
+      "name": "Asana: create onboarding project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3600,
+        -400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.asana.com/api/1.0/projects",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "asanaApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan the updates').first().json.project) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "asanaApi": {
+          "id": "4WWD9WueCf96y3km",
+          "name": "MDR Asana"
+        }
+      }
+    },
+    {
+      "id": "fce96b44-0883-5744-a695-5dc79ca3f814",
+      "name": "Onboarding tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        -400
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst p = $input.first().json.data;\nreturn $('Plan the updates').first().json.projectTasks.map((t) => ({ json: { data: { name: t.name, due_on: t.due_on, projects: [p.gid], assignee: CFG.asanaUser } } }));"
+      }
+    },
+    {
+      "id": "6ab2569a-2624-1f7c-4c14-eed02586ccc1",
+      "name": "Asana: add onboarding task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4080,
+        -400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.asana.com/api/1.0/tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "asanaApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "asanaApi": {
+          "id": "4WWD9WueCf96y3km",
+          "name": "MDR Asana"
+        }
+      }
+    },
+    {
+      "id": "1f4eacb7-fa9a-9f8a-b05e-88b63d11157e",
+      "name": "Onboarding done",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4320,
+        -400
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst p = $('Asana: create onboarding project').first().json.data;\nreturn [{ json: { project: p.gid, url: p.permalink_url, tasks: $input.all().length } }];"
+      }
+    },
+    {
+      "id": "97c112cd-510d-06d4-88d7-d5b3a2a8c75f",
+      "name": "Sheet update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nreturn [{ json: $('Plan the updates').first().json.sheetRow }];"
+      }
+    },
+    {
+      "id": "669631a9-2b1e-d964-7150-20358d847af3",
+      "name": "Sheet: update the row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4800,
+        -200
+      ],
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "1670369092",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "Lead ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "M8QrX9oedUm6DHil",
+          "name": "Google Sheets TheJobStash"
+        }
+      }
+    },
+    {
+      "id": "cc20dc19-6070-951d-81a7-26b2282af309",
+      "name": "Emails to send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5040,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\nreturn ($('Plan the updates').first().json.emails || []).map((e) => ({ json: e }));"
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "5bb123f4-f3ee-681c-9338-94f211485fe9",
+      "name": "Brevo: send email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5280,
+        -200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "agIoZGO8q9dri3JN",
+          "name": "MDR Brevo email"
+        }
+      }
+    },
+    {
+      "id": "7ed48499-7dc1-3434-bd9f-c0e3d284028e",
+      "name": "What happened",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5520,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "const CFG = {\"crm\":\"http://localhost:3090\",\"crmPublic\":\"http://localhost:3090\",\"ollama\":\"http://127.0.0.1:11434/api/chat\",\"model\":\"qwen2.5:7b\",\"sender\":\"justin.masiga.94@gmail.com\",\"sheetId\":\"1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU\",\"sheetUrl\":\"https://docs.google.com/spreadsheets/d/1LhsJq1Y20-sje6BJFhxoDYHf1d50lLUNhsjMWGxA6QU/edit\",\"asanaProject\":\"1219384275693582\",\"asanaUser\":\"1219383696818190\",\"asanaWorkspace\":\"1219383696818202\",\"asanaSections\":{\"hot\":\"1219384088804374\",\"talk\":\"1219384275704786\",\"contacted\":\"1219384275661981\",\"booked\":\"1219384045822740\"},\"slackTeam\":\"T04KDKGJFAP\",\"opsChannel\":\"mdr-ops\",\"dailyChannel\":\"mdr-daily\",\"siteNames\":{\"site-a\":\"Practice Growth Check\",\"site-b\":\"Grant Ready\"}};\n\nconst plan = $('Plan the updates').first().json;\nlet onboarding = null;\ntry { onboarding = $('Onboarding done').first().json; } catch (e) {}\nconst events = [{ type: 'synced', actor: 'n8n', detail: { what: plan.log.join('. ') } }];\nif (onboarding) events.push({ type: 'onboarding', actor: 'n8n', detail: { url: onboarding.url, tasks: onboarding.tasks } });\nreturn events.map((e) => ({ json: { id: plan.lead.id, ...e } }));"
+      }
+    },
+    {
+      "id": "7c182449-c980-c3b3-d776-e9a2d42becd2",
+      "name": "CRM: log it on the timeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5760,
+        -200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://localhost:3090/api/leads/' + $json.id + '/events' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: $json.type, actor: $json.actor, detail: $json.detail }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TVA4RYLfQQi74eE4",
+          "name": "MDR CRM API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "A lead changed": {
+      "main": [
+        [
+          {
+            "node": "Check the CRM key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the CRM key": {
+      "main": [
+        [
+          {
+            "node": "Trusted caller?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trusted caller?": {
+      "main": [
+        [
+          {
+            "node": "Reply 200",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply 200": {
+      "main": [
+        [
+          {
+            "node": "CRM: load the lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: load the lead": {
+      "main": [
+        [
+          {
+            "node": "Sheet: team roster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: team roster": {
+      "main": [
+        [
+          {
+            "node": "Plan the updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan the updates": {
+      "main": [
+        [
+          {
+            "node": "Slack message to update?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack message to update?": {
+      "main": [
+        [
+          {
+            "node": "Slack: refresh the lead message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Asana changes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: refresh the lead message": {
+      "main": [
+        [
+          {
+            "node": "Slack: note it in the thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: note it in the thread": {
+      "main": [
+        [
+          {
+            "node": "Asana changes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana changes?": {
+      "main": [
+        [
+          {
+            "node": "Asana steps",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Won? Start onboarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana steps": {
+      "main": [
+        [
+          {
+            "node": "Asana: apply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana: apply": {
+      "main": [
+        [
+          {
+            "node": "Asana done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana done": {
+      "main": [
+        [
+          {
+            "node": "Won? Start onboarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Won? Start onboarding": {
+      "main": [
+        [
+          {
+            "node": "Asana: create onboarding project",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sheet update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana: create onboarding project": {
+      "main": [
+        [
+          {
+            "node": "Onboarding tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Onboarding tasks": {
+      "main": [
+        [
+          {
+            "node": "Asana: add onboarding task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asana: add onboarding task": {
+      "main": [
+        [
+          {
+            "node": "Onboarding done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Onboarding done": {
+      "main": [
+        [
+          {
+            "node": "Sheet update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet update": {
+      "main": [
+        [
+          {
+            "node": "Sheet: update the row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet: update the row": {
+      "main": [
+        [
+          {
+            "node": "Emails to send",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "What happened",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emails to send": {
+      "main": [
+        [
+          {
+            "node": "Brevo: send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "What happened": {
+      "main": [
+        [
+          {
+            "node": "CRM: log it on the timeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

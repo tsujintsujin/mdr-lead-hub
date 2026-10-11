@@ -27,7 +27,7 @@ const CFG = {
   slackTeam: env.SLACK_TEAM_ID, opsChannel: 'mdr-ops', dailyChannel: 'mdr-daily',
   siteNames: { 'site-a': 'Practice Growth Check', 'site-b': 'Grant Ready' },
 };
-const SECRETS = { MDR_HMAC_SECRET: env.MDR_HMAC_SECRET, SLACK_SIGNING_SECRET: env.SLACK_SIGNING_SECRET };
+const SECRETS = { MDR_HMAC_SECRET: env.MDR_HMAC_SECRET, SLACK_SIGNING_SECRET: env.SLACK_SIGNING_SECRET, CRM_API_KEY: env.CRM_API_KEY };
 
 const CRED = {
   crm: { httpHeaderAuth: { id: env.N8N_CRED_CRM, name: 'MDR CRM API' } },
@@ -46,7 +46,7 @@ const code = (name, body, pos, { lib = false, msg = false, secrets = false, each
   jsCode: [
     lib ? LIB_INTAKE : '', msg ? LIB_MSG : '',
     `const CFG = ${JSON.stringify(CFG)};`,
-    secrets ? `const SECRET = { hmac: '{{MDR_HMAC_SECRET}}', slack: '{{SLACK_SIGNING_SECRET}}' };` : '',
+    secrets ? `const SECRET = { hmac: '{{MDR_HMAC_SECRET}}', slack: '{{SLACK_SIGNING_SECRET}}', crm: '{{CRM_API_KEY}}' };` : '',
     body,
   ].filter(Boolean).join('\n'),
 }, pos);
@@ -364,8 +364,390 @@ return [{ json: { channel: CFG.opsChannel, text: ':rotating_light: ' + wf + ' fa
   };
 }
 
+/* shared: check the CRM's key on an internal webhook */
+const KEY_CHECK = (extra = '') => `
+const crypto = require('crypto');
+const h = $input.first().json.headers || {};
+const got = String(h['x-mdr-key'] || '');
+const ok = got.length === SECRET.crm.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(SECRET.crm));
+${extra}
+return [{ json: { ok, body: $input.first().json.body || {}, query: $input.first().json.query || {}, response: ok ? { ok: true } : { ok: false, error: 'bad key' } } }];`;
+
+/* =====================================================================
+   W7  MDR · Roster (the CRM's Team page reads the Sheet through this)
+   ===================================================================== */
+function rosterWf() {
+  wfName = 'MDR · Roster';
+  return {
+    name: wfName,
+    nodes: [
+      webhook('CRM asks for the roster', 'mdr-roster', row(0), { method: 'GET' }),
+      code('Check the CRM key', KEY_CHECK(), row(1), { secrets: true }),
+      iff('From the CRM?', '={{ $json.ok }}', row(2)),
+      sheetRead('Sheet: team roster', '1123782870', row(3, -1)),
+      code('Shape the roster', `
+const reps = $input.all().map((i) => i.json).filter((r) => r.Rep).map((r) => ({
+  name: String(r.Rep).trim(), email: String(r.Email || '').trim(), role: String(r.Role || '').trim(),
+  covers: String(r.Covers || '').split(',').map((s) => s.trim()).filter(Boolean), channel: String(r['Slack channel'] || '').replace(/^#/, ''),
+  active: String(r.Active || '').toLowerCase().startsWith('y'),
+}));
+return [{ json: { response: { reps } } }];`, row(4, -1)),
+      respond('Send it back', row(5, -1)),
+      respond('Reply 401', row(3, 1), { code: 401 }),
+    ],
+    connections: wire([
+      ['CRM asks for the roster', 'Check the CRM key'], ['Check the CRM key', 'From the CRM?'], ['From the CRM?', 'Sheet: team roster', 0], ['From the CRM?', 'Reply 401', 1],
+      ['Sheet: team roster', 'Shape the roster'], ['Shape the roster', 'Send it back'],
+    ]),
+  };
+}
+
+/* =====================================================================
+   W4  MDR · Sync a change everywhere
+   Called by the CRM (a person clicked something), by W2 (Slack button) and W3 (Asana).
+   The CRM database is already updated; this brings Slack, Asana, the Sheet and email in line.
+   ===================================================================== */
+function sync() {
+  wfName = 'MDR · Sync a change everywhere';
+  const nodes = [
+    webhook('A lead changed', 'mdr-crm-event', row(0)),
+    code('Check the CRM key', KEY_CHECK(), row(1), { secrets: true }),
+    iff('Trusted caller?', '={{ $json.ok }}', row(2)),
+    respond('Reply 200', row(3, -1)),
+    respond('Reply 401', row(3, 1), { code: 401 }),
+    http('CRM: load the lead', row(4, -1), { url: `={{ '${CFG.crm}/api/leads/' + $('Check the CRM key').first().json.body.lead_id }}`, cred: 'crm' }),
+    sheetRead('Sheet: team roster', '1123782870', row(5, -1)),
+    code('Plan the updates', `
+const ev = $('Check the CRM key').first().json.body;           // { action, lead_id, from, to, note, by, origin }
+const lead = $('CRM: load the lead').first().json.lead;
+const roster = LIB.parseRoster($('Sheet: team roster').all().map((i) => i.json));
+const crmUrl = CFG.crmPublic + '/leads/' + lead.id;
+const stamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+const by = ev.by || 'Someone';
+const where = ev.origin === 'slack' ? 'in Slack' : ev.origin === 'asana' ? 'in Asana' : 'in the CRM';
+const STAGE = { new: 'New', contacted: 'Contacted', booked: 'Booked', won: 'Won', lost: 'Lost' };
+const plan = { lead, crmUrl, asana: [], emails: [], onboarding: false, log: [] };
+let status = '', thread = '';
+if (ev.action === 'stage') {
+  const icon = { contacted: '📞', booked: '📅', won: '🏆', lost: '🪦', new: '↩️' }[ev.to] || '•';
+  status = icon + ' ' + STAGE[ev.to] + ', by ' + by + ' ' + where + ', ' + stamp;
+  thread = by + ' moved this from ' + STAGE[ev.from] + ' to ' + STAGE[ev.to] + ' ' + where + '.';
+  if (lead.asana_task_gid && ev.origin !== 'asana') {
+    const t = lead.asana_task_gid;
+    if (ev.to === 'contacted') plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/sections/' + CFG.asanaSections.contacted + '/addTask', body: { data: { task: t } } });
+    if (ev.to === 'booked') plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/sections/' + CFG.asanaSections.booked + '/addTask', body: { data: { task: t } } });
+    if (ev.to === 'won' || ev.to === 'lost') plan.asana.push({ method: 'PUT', url: 'https://app.asana.com/api/1.0/tasks/' + t, body: { data: { completed: true } } });
+    plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + t + '/stories', body: { data: { text: thread + ' ' + crmUrl } } });
+  }
+  if (ev.to === 'won') plan.onboarding = true;
+  plan.log.push(STAGE[ev.to] + ' in Slack, Asana and the Sheet');
+}
+if (ev.action === 'override') {
+  status = '✏️ ' + by + ' changed the verdict to ' + LIB.VERDICT_LABEL[ev.to] + ' ' + where + (ev.note ? ': “' + ev.note + '”' : '') + ', ' + stamp;
+  thread = by + ' changed the AI’s verdict from ' + LIB.VERDICT_LABEL[ev.from] + ' to ' + LIB.VERDICT_LABEL[ev.to] + (ev.note ? ' because: ' + ev.note : '') + '. Saved as an example for the model.';
+  if (lead.asana_task_gid && ['not_fit', 'spam'].includes(ev.to) && ev.origin !== 'asana') {
+    plan.asana.push({ method: 'PUT', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid, body: { data: { completed: true } } });
+    plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid + '/stories', body: { data: { text: thread } } });
+  }
+  plan.log.push('Verdict change pushed to Slack, Asana and the Sheet');
+}
+if (ev.action === 'reassign') {
+  const rep = roster.find((r) => r.name === ev.to);
+  status = '🔁 Handed to ' + ev.to + ' by ' + by + ', ' + stamp;
+  thread = by + ' handed this lead to ' + ev.to + (ev.from ? ' (was ' + ev.from + ')' : '') + '.';
+  if (rep && rep.email) {
+    const e = MSG.repEmail({ ...lead, why: (lead.ai && lead.ai.reasons) || [] }, { lib: LIB, rep, crmUrl, siteName: CFG.siteNames[lead.site] });
+    plan.emails.push({ sender: { name: 'Marketing Done Right', email: CFG.sender }, to: [{ email: rep.email, name: rep.name }], subject: 'Handed to you: ' + e.subject.replace(/^.*?lead for you: /, ''), htmlContent: e.html });
+  }
+  if (lead.asana_task_gid) plan.asana.push({ method: 'POST', url: 'https://app.asana.com/api/1.0/tasks/' + lead.asana_task_gid + '/stories', body: { data: { text: thread } } });
+  plan.log.push('Handover sent to ' + ev.to);
+}
+const rep = roster.find((r) => r.name === lead.assignee) || null;
+if (lead.slack_ts && lead.slack_channel) {
+  const m = MSG.slackLead({ ...lead, why: (lead.ai && lead.ai.reasons) || [] }, { lib: LIB, crmUrl, rep, status });
+  plan.slackUpdate = { channel: lead.slack_channel, ts: lead.slack_ts, text: m.text, blocks: m.blocks };
+  plan.slackThread = { channel: lead.slack_channel, thread_ts: lead.slack_ts, text: thread, unfurl_links: false };
+}
+plan.sheetRow = {
+  'Lead ID': lead.id, Verdict: LIB.VERDICT_LABEL[lead.verdict] || '', Stage: STAGE[lead.stage] || lead.stage, 'Assigned to': lead.assignee || '',
+  Updated: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
+};
+if (plan.onboarding) {
+  const f = lead.fields || {};
+  const day = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10);
+  plan.project = { data: { name: 'Onboarding: ' + lead.business, workspace: CFG.asanaWorkspace, default_view: 'list', notes: 'Won ' + stamp + ' by ' + (lead.assignee || by) + '. Lead ' + lead.id + ': ' + crmUrl } };
+  plan.projectTasks = (lead.variant === 'grant' ? [
+    ['Kickoff call with ' + (f.name || 'the contact'), 1], ['Confirm 501(c)(3) letter and Google for Nonprofits account', 2], ['Apply for (or take over) the Ad Grants account', 4],
+    ['Build mission-focused campaigns and conversion tracking', 7], ['Compliance check: 5% CTR, conversions, account structure', 14], ['First monthly report to ' + (f.name || 'the client'), 30],
+  ] : [
+    ['Kickoff call with ' + (f.name || 'the contact'), 1], ['Get access: website, Google Business Profile, Analytics, Search Console', 2], ['Full SEO and speed audit of ' + (lead.website || 'the site'), 5],
+    ['Fix the checkup issues (speed, titles, local schema)', 10], ['Set up Google Ads and call tracking', 10], ['30-day results review', 30],
+  ]).map(([name, d]) => ({ name, due_on: day(d) }));
+}
+return [{ json: plan }];`, row(6, -1), { lib: true, msg: true }),
+    iff('Slack message to update?', '={{ !!$json.slackUpdate }}', row(7, -1)),
+    http('Slack: refresh the lead message', row(8, -2), { method: 'POST', url: 'https://slack.com/api/chat.update', cred: 'slack', json: "={{ JSON.stringify($('Plan the updates').first().json.slackUpdate) }}" }),
+    http('Slack: note it in the thread', row(9, -2), { method: 'POST', url: 'https://slack.com/api/chat.postMessage', cred: 'slack', json: "={{ JSON.stringify($('Plan the updates').first().json.slackThread) }}" }),
+    iff('Asana changes?', "={{ $('Plan the updates').first().json.asana.length > 0 }}", row(10, -1)),
+    code('Asana steps', `return $('Plan the updates').first().json.asana.map((a) => ({ json: a }));`, row(11, -2)),
+    http('Asana: apply', row(12, -2), { method: '={{ $json.method }}', url: '={{ $json.url }}', cred: 'asana', json: '={{ JSON.stringify($json.body) }}', neverError: true }),
+    code('Asana done', `return [{ json: { asana: $input.all().length } }];`, row(13, -2)),
+    iff('Won? Start onboarding', "={{ $('Plan the updates').first().json.onboarding }}", row(14, -1)),
+    http('Asana: create onboarding project', row(15, -2), { method: 'POST', url: 'https://app.asana.com/api/1.0/projects', cred: 'asana', json: "={{ JSON.stringify($('Plan the updates').first().json.project) }}" }),
+    code('Onboarding tasks', `
+const p = $input.first().json.data;
+return $('Plan the updates').first().json.projectTasks.map((t) => ({ json: { data: { name: t.name, due_on: t.due_on, projects: [p.gid], assignee: CFG.asanaUser } } }));`, row(16, -2)),
+    http('Asana: add onboarding task', row(17, -2), { method: 'POST', url: 'https://app.asana.com/api/1.0/tasks', cred: 'asana', json: '={{ JSON.stringify($json) }}' }),
+    code('Onboarding done', `
+const p = $('Asana: create onboarding project').first().json.data;
+return [{ json: { project: p.gid, url: p.permalink_url, tasks: $input.all().length } }];`, row(18, -2)),
+    code('Sheet update', `return [{ json: $('Plan the updates').first().json.sheetRow }];`, row(19, -1)),
+    sheetUpsert('Sheet: update the row', '1670369092', row(20, -1)),
+    code('Emails to send', `return ($('Plan the updates').first().json.emails || []).map((e) => ({ json: e }));`, row(21, -1), { }),
+    http('Brevo: send email', row(22, -1), { method: 'POST', url: 'https://api.brevo.com/v3/smtp/email', cred: 'brevo', json: '={{ JSON.stringify($json) }}', neverError: true }),
+    code('What happened', `
+const plan = $('Plan the updates').first().json;
+let onboarding = null;
+try { onboarding = $('Onboarding done').first().json; } catch (e) {}
+const events = [{ type: 'synced', actor: 'n8n', detail: { what: plan.log.join('. ') } }];
+if (onboarding) events.push({ type: 'onboarding', actor: 'n8n', detail: { url: onboarding.url, tasks: onboarding.tasks } });
+return events.map((e) => ({ json: { id: plan.lead.id, ...e } }));`, row(23, -1)),
+    http('CRM: log it on the timeline', row(24, -1), { method: 'POST', url: `={{ '${CFG.crm}/api/leads/' + $json.id + '/events' }}`, cred: 'crm', json: '={{ JSON.stringify({ type: $json.type, actor: $json.actor, detail: $json.detail }) }}' }),
+  ];
+  nodes.find((n) => n.name === 'Emails to send').alwaysOutputData = false;
+  const connections = wire([
+    ['A lead changed', 'Check the CRM key'], ['Check the CRM key', 'Trusted caller?'], ['Trusted caller?', 'Reply 200', 0], ['Trusted caller?', 'Reply 401', 1],
+    ['Reply 200', 'CRM: load the lead'], ['CRM: load the lead', 'Sheet: team roster'], ['Sheet: team roster', 'Plan the updates'], ['Plan the updates', 'Slack message to update?'],
+    ['Slack message to update?', 'Slack: refresh the lead message', 0], ['Slack message to update?', 'Asana changes?', 1],
+    ['Slack: refresh the lead message', 'Slack: note it in the thread'], ['Slack: note it in the thread', 'Asana changes?'],
+    ['Asana changes?', 'Asana steps', 0], ['Asana changes?', 'Won? Start onboarding', 1], ['Asana steps', 'Asana: apply'], ['Asana: apply', 'Asana done'], ['Asana done', 'Won? Start onboarding'],
+    ['Won? Start onboarding', 'Asana: create onboarding project', 0], ['Won? Start onboarding', 'Sheet update', 1],
+    ['Asana: create onboarding project', 'Onboarding tasks'], ['Onboarding tasks', 'Asana: add onboarding task'], ['Asana: add onboarding task', 'Onboarding done'], ['Onboarding done', 'Sheet update'],
+    ['Sheet update', 'Sheet: update the row'], ['Sheet: update the row', 'Emails to send'], ['Emails to send', 'Brevo: send email'],
+    ['What happened', 'CRM: log it on the timeline'],
+  ]);
+  // No emails is the usual case: let the log step run anyway.
+  connections['Sheet: update the row'].main[0].push({ node: 'What happened', type: 'main', index: 0 });
+  return { name: wfName, nodes, connections };
+}
+
+/* =====================================================================
+   W2  MDR · Slack buttons  (public, through the tunnel)
+   ===================================================================== */
+function slackButtons() {
+  wfName = 'MDR · Slack buttons';
+  const nodes = [
+    webhook('Slack button clicked', 'mdr-slack', row(0), { raw: true }),
+    code('Check it came from Slack', `
+const crypto = require('crypto');
+const item = $input.first();
+let raw;
+try { raw = await this.helpers.getBinaryDataBuffer(0, 'data'); }
+catch (e) { raw = Buffer.from((item.binary && item.binary.data && item.binary.data.data) || '', 'base64'); }
+const h = item.json.headers || {};
+const ts = String(h['x-slack-request-timestamp'] || '');
+const want = 'v0=' + crypto.createHmac('sha256', SECRET.slack).update('v0:' + ts + ':' + raw.toString('utf8')).digest('hex');
+const got = String(h['x-slack-signature'] || '');
+const fresh = Math.abs(Date.now() / 1000 - Number(ts)) < 300;
+const ok = fresh && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
+let p = null;
+if (ok) { try { p = JSON.parse((item.json.body && item.json.body.payload) || '{}'); } catch (e) {} }   // n8n already decoded the form body
+const a = p && p.actions && p.actions[0];
+const map = { mdr_contacted: { action: 'stage', to: 'contacted' }, mdr_booked: { action: 'stage', to: 'booked' }, mdr_not_fit: { action: 'override', to: 'not_fit' } };
+const todo = a && map[a.action_id] ? { ...map[a.action_id], lead_id: a.value, user_id: p.user && p.user.id, by: (p.user && (p.user.name || p.user.username)) || 'Someone', origin: 'slack' } : null;
+return [{ json: { ok: !!p, todo, response: {}} }];`, row(1), { secrets: true }),
+    iff('Signed by Slack?', '={{ $json.ok }}', row(2)),
+    respond('Ack within 3 seconds', row(3, -1), { body: '' }),
+    respond('Reply 401', row(3, 1), { code: 401 }),
+    iff('A button that changes something?', "={{ !!$('Check it came from Slack').first().json.todo }}", row(4, -1)),
+    http('Slack: who clicked?', row(5, -3), { url: 'https://slack.com/api/users.info', cred: 'slack', query: { user: "={{ $('Check it came from Slack').first().json.todo.user_id }}" }, neverError: true }),
+    http('CRM: load the lead', row(5, -2), { url: `={{ '${CFG.crm}/api/leads/' + $('Check it came from Slack').first().json.todo.lead_id }}`, cred: 'crm' }),
+    code('Work out the change', `
+const t = { ...$('Check it came from Slack').first().json.todo };
+try { const u = $('Slack: who clicked?').first().json.user; if (u) t.by = (u.profile && u.profile.real_name) || u.real_name || t.by; } catch (e) {}
+const lead = $input.first().json.lead;
+const who = 'Slack: ' + t.by;
+let patch = null, ev = null;
+if (t.action === 'stage' && lead.stage !== t.to) {
+  patch = { stage: t.to, ...(lead.first_contact_at ? {} : { first_contact_at: new Date().toISOString() }), event: { type: 'stage', actor: who, detail: { from: lead.stage, to: t.to } } };
+  ev = { action: 'stage', lead_id: lead.id, from: lead.stage, to: t.to, by: t.by, origin: 'slack' };
+}
+if (t.action === 'override' && lead.verdict !== t.to) {
+  const note = 'Marked not a fit from Slack';
+  patch = { verdict: t.to, verdict_by: 'person', correction: { from: lead.verdict, to: t.to, note, by: t.by }, event: { type: 'override', actor: who, detail: { from: lead.verdict, to: t.to, note } } };
+  ev = { action: 'override', lead_id: lead.id, from: lead.verdict, to: t.to, note, by: t.by, origin: 'slack' };
+}
+return patch ? [{ json: { id: lead.id, patch, ev } }] : [];`, row(6, -2)),
+    http('CRM: save it', row(7, -2), { method: 'PATCH', url: `={{ '${CFG.crm}/api/leads/' + $json.id }}`, cred: 'crm', json: '={{ JSON.stringify($json.patch) }}' }),
+    http('Sync everywhere else', row(8, -2), { method: 'POST', url: 'http://127.0.0.1:5678/webhook/mdr-crm-event', headers: { 'X-MDR-Key': '{{CRM_API_KEY}}' }, json: "={{ JSON.stringify($('Work out the change').first().json.ev) }}" }),
+  ];
+  return {
+    name: wfName, nodes,
+    connections: wire([
+      ['Slack button clicked', 'Check it came from Slack'], ['Check it came from Slack', 'Signed by Slack?'], ['Signed by Slack?', 'Ack within 3 seconds', 0], ['Signed by Slack?', 'Reply 401', 1],
+      ['Ack within 3 seconds', 'A button that changes something?'], ['A button that changes something?', 'Slack: who clicked?', 0], ['Slack: who clicked?', 'CRM: load the lead'], ['CRM: load the lead', 'Work out the change'],
+      ['Work out the change', 'CRM: save it'], ['CRM: save it', 'Sync everywhere else'],
+    ]),
+  };
+}
+
+/* =====================================================================
+   W3  MDR · Asana updates  (public, through the tunnel)
+   Ticking off the follow-up task, or dragging it to Contacted/Booked, moves the lead.
+   ===================================================================== */
+function asanaEvents() {
+  wfName = 'MDR · Asana updates';
+  const nodes = [
+    webhook('Asana event', 'mdr-asana', row(0), { raw: true }),
+    code('Handshake or verify', `
+const crypto = require('crypto');
+const item = $input.first();
+const h = item.json.headers || {};
+const store = $getWorkflowStaticData('global');
+if (h['x-hook-secret']) {                          // Asana's first call when the webhook is created
+  store.secret = h['x-hook-secret'];
+  return [{ json: { handshake: true, secret: h['x-hook-secret'], events: [] } }];
+}
+let raw;
+try { raw = await this.helpers.getBinaryDataBuffer(0, 'data'); }
+catch (e) { raw = Buffer.from((item.binary && item.binary.data && item.binary.data.data) || '', 'base64'); }
+const want = store.secret ? crypto.createHmac('sha256', store.secret).update(raw).digest('hex') : '';
+const got = String(h['x-hook-signature'] || '');
+const ok = !!want && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
+let events = [];
+if (ok) { try { events = JSON.parse(raw.toString('utf8')).events || []; } catch (e) {} }
+return [{ json: { handshake: false, ok, events } }];`, row(1)),
+    iff('Handshake?', '={{ $json.handshake }}', row(2)),
+    respond('Echo the secret', row(3, -1), { body: '', headers: [{ name: 'X-Hook-Secret', value: '={{ $json.secret }}' }] }),
+    respond('Ack', row(3, 1), { body: '' }),
+    code('Task changes we care about', `
+const SECTION_TO_STAGE = { [CFG.asanaSections.contacted]: 'contacted', [CFG.asanaSections.booked]: 'booked' };
+const out = [];
+for (const e of $('Handshake or verify').first().json.events || []) {
+  if (!e.resource || e.resource.resource_type !== 'task') continue;
+  const who = (e.user && e.user.gid) || '';
+  if (e.action === 'changed' && e.change && e.change.field === 'completed') out.push({ task: e.resource.gid, kind: 'completed' });
+  if (e.action === 'added' && e.parent && e.parent.resource_type === 'section' && SECTION_TO_STAGE[e.parent.gid]) out.push({ task: e.resource.gid, kind: 'section', to: SECTION_TO_STAGE[e.parent.gid] });
+}
+const seen = new Set();
+return out.filter((o) => { const k = o.task + o.kind + (o.to || ''); if (seen.has(k)) return false; seen.add(k); return true; }).map((o) => ({ json: o }));`, row(4, 1)),
+    http('Asana: is it done?', row(5, 1), { url: "={{ 'https://app.asana.com/api/1.0/tasks/' + $json.task + '?opt_fields=completed,name' }}", cred: 'asana', neverError: true }),
+    http('CRM: which lead?', row(6, 1), { url: `${CFG.crm}/api/lookup`, cred: 'crm', query: { asana_task: "={{ $('Task changes we care about').item.json.task }}" } }),
+    code('Work out the change', `
+const out = [];
+$input.all().forEach((it, i) => {
+  const lead = it.json.lead;
+  const c = $('Task changes we care about').all()[i].json;
+  const task = $('Asana: is it done?').all()[i].json.data || {};
+  if (!lead) return;
+  let to = null;
+  if (c.kind === 'section') to = c.to;
+  if (c.kind === 'completed' && task.completed && lead.stage === 'new') to = 'contacted';
+  const order = ['new', 'contacted', 'booked', 'won', 'lost'];
+  if (!to || order.indexOf(to) <= order.indexOf(lead.stage)) return;   // never move a lead backwards, and ignore our own echoes
+  out.push({ json: { id: lead.id, patch: { stage: to, ...(lead.first_contact_at ? {} : { first_contact_at: new Date().toISOString() }), event: { type: 'stage', actor: 'Asana: Justin Masiga', detail: { from: lead.stage, to } } },
+    ev: { action: 'stage', lead_id: lead.id, from: lead.stage, to, by: 'Justin Masiga', origin: 'asana' } } });
+});
+return out;`, row(7, 1)),
+    http('CRM: save it', row(8, 1), { method: 'PATCH', url: `={{ '${CFG.crm}/api/leads/' + $json.id }}`, cred: 'crm', json: '={{ JSON.stringify($json.patch) }}' }),
+    http('Sync everywhere else', row(9, 1), { method: 'POST', url: 'http://127.0.0.1:5678/webhook/mdr-crm-event', headers: { 'X-MDR-Key': '{{CRM_API_KEY}}' }, json: "={{ JSON.stringify($('Work out the change').item.json.ev) }}" }),
+  ];
+  return {
+    name: wfName, nodes,
+    connections: wire([
+      ['Asana event', 'Handshake or verify'], ['Handshake or verify', 'Handshake?'], ['Handshake?', 'Echo the secret', 0], ['Handshake?', 'Ack', 1],
+      ['Ack', 'Task changes we care about'], ['Task changes we care about', 'Asana: is it done?'], ['Asana: is it done?', 'CRM: which lead?'],
+      ['CRM: which lead?', 'Work out the change'], ['Work out the change', 'CRM: save it'], ['CRM: save it', 'Sync everywhere else'],
+    ]),
+  };
+}
+
+/* =====================================================================
+   W5  MDR · Follow-up watch   (hourly; also /webhook/mdr-followup-now?hours=0.05 for a demo)
+   ===================================================================== */
+function followup() {
+  wfName = 'MDR · Follow-up watch';
+  const nodes = [
+    schedule('Every hour', { interval: [{ field: 'hours', hoursInterval: 1 }] }, row(0, -1)),
+    webhook('Run it now (demo)', 'mdr-followup-now', row(0, 1), { method: 'GET', respond: 'onReceived' }),
+    code('How long is too long', `
+let hours = 24;
+try { const q = $('Run it now (demo)').first().json.query || {}; if (q.hours) hours = Math.max(0.01, Number(q.hours)); } catch (e) {}
+return [{ json: { hours } }];`, row(1)),
+    http('CRM: leads nobody has called', row(2), { url: `${CFG.crm}/api/leads`, cred: 'crm', query: { stale_hours: '={{ $json.hours }}' } }),
+    sheetRead('Sheet: team roster', '1123782870', row(3)),
+    code('One alert per lead', `
+const hours = $('How long is too long').first().json.hours;
+const roster = LIB.parseRoster($('Sheet: team roster').all().map((i) => i.json));
+const boss = LIB.manager(roster);
+const leads = ($('CRM: leads nobody has called').first().json.leads || []).filter((l) => !l.escalated_at && !l.duplicate_of);
+return leads.map((l) => {
+  const age = Math.round((Date.now() - new Date(l.created_at).getTime()) / 3600e3 * 10) / 10;
+  const crmUrl = CFG.crmPublic + '/leads/' + l.id;
+  const text = '⏰ ' + l.business + ' came in ' + age + ' hours ago as ' + LIB.VERDICT_LABEL[l.verdict].toLowerCase() + ', and nobody’s reached out yet. It’s ' + (l.assignee || 'unassigned') + '’s. <' + crmUrl + '|' + l.id + '>';
+  return { json: {
+    id: l.id, hours, age, ops: { channel: CFG.opsChannel, text, unfurl_links: false },
+    thread: l.slack_ts ? { channel: l.slack_channel, thread_ts: l.slack_ts, text: '⏰ Still no first contact after ' + age + ' hours. Flagged to ' + (boss ? boss.name : 'the manager') + '.' } : null,
+    email: boss ? { sender: { name: 'MDR Lead Hub', email: CFG.sender }, to: [{ email: boss.email, name: boss.name }], subject: 'Nobody has called ' + l.business + ' yet (' + age + ' h)',
+      htmlContent: '<p>Hi ' + LIB.firstName(boss.name) + ',</p><p>' + MSG.esc(l.business) + ' came in ' + age + ' hours ago as <strong>' + LIB.VERDICT_LABEL[l.verdict] + '</strong> (score ' + l.score + ') and is still marked New. It belongs to ' + MSG.esc(l.assignee || 'nobody') + '.</p><p><a href="' + crmUrl + '">Open ' + l.id + ' in the CRM</a></p>' } : null,
+    manager: boss ? boss.name : null,
+  } };
+});`, row(4), { lib: true, msg: true }),
+    http('Slack: flag it in #mdr-ops', row(5), { method: 'POST', url: 'https://slack.com/api/chat.postMessage', cred: 'slack', json: '={{ JSON.stringify($json.ops) }}' }),
+    http('Slack: nudge the lead thread', row(6), { method: 'POST', url: 'https://slack.com/api/chat.postMessage', cred: 'slack', json: "={{ JSON.stringify($('One alert per lead').item.json.thread || { channel: '" + CFG.opsChannel + "', text: '' }) }}", neverError: true }),
+    http('Brevo: email the manager', row(7), { method: 'POST', url: 'https://api.brevo.com/v3/smtp/email', cred: 'brevo', json: "={{ JSON.stringify($('One alert per lead').item.json.email) }}", neverError: true }),
+    http('CRM: mark it escalated', row(8), { method: 'PATCH', url: `={{ '${CFG.crm}/api/leads/' + $('One alert per lead').item.json.id }}`, cred: 'crm',
+      json: "={{ JSON.stringify({ escalated_at: new Date().toISOString(), event: { type: 'escalated', actor: 'n8n', detail: { hours: $('One alert per lead').item.json.age, manager: $('One alert per lead').item.json.manager } } }) }}" }),
+  ];
+  return {
+    name: wfName, nodes,
+    connections: wire([
+      ['Every hour', 'How long is too long'], ['Run it now (demo)', 'How long is too long'], ['How long is too long', 'CRM: leads nobody has called'],
+      ['CRM: leads nobody has called', 'Sheet: team roster'], ['Sheet: team roster', 'One alert per lead'], ['One alert per lead', 'Slack: flag it in #mdr-ops'],
+      ['Slack: flag it in #mdr-ops', 'Slack: nudge the lead thread'], ['Slack: nudge the lead thread', 'Brevo: email the manager'], ['Brevo: email the manager', 'CRM: mark it escalated'],
+    ]),
+  };
+}
+
+/* =====================================================================
+   W6  MDR · Daily digest   (8:00 New York time; also /webhook/mdr-digest-now)
+   ===================================================================== */
+function digest() {
+  wfName = 'MDR · Daily digest';
+  const nodes = [
+    schedule('Every morning at 8', { interval: [{ field: 'days', daysInterval: 1, triggerAtHour: 8, triggerAtMinute: 0 }] }, row(0, -1)),
+    webhook('Run it now (demo)', 'mdr-digest-now', row(0, 1), { method: 'GET', respond: 'onReceived' }),
+    http('CRM: the last 24 hours', row(1), { url: `${CFG.crm}/api/stats`, cred: 'crm', query: { since: "={{ new Date(Date.now() - 864e5).toISOString() }}" } }),
+    http('CRM: still waiting', row(2), { url: `${CFG.crm}/api/leads`, cred: 'crm', query: { stale_hours: '24' } }),
+    sheetRead('Sheet: team roster', '1123782870', row(3)),
+    code('Write the digest', `
+const s = $('CRM: the last 24 hours').first().json;
+const stale = ($('CRM: still waiting').first().json.leads || []).length;
+const n = (k) => Number((s.byVerdict.find((r) => r.k === k) || {}).n || 0);
+const top = (s.bySource[0] || {}).k || 'nowhere yet';
+const boss = LIB.manager(LIB.parseRoster($('Sheet: team roster').all().map((i) => i.json)));
+const text = '☀️ Yesterday brought ' + s.total + ' lead' + (s.total === 1 ? '' : 's') + ': ' + n('hot') + ' hot, ' + n('warm') + ' warm, ' + n('talk') + ' that need a conversation' +
+  (n('not_fit') ? ', ' + n('not_fit') + ' not a fit' : '') + (n('spam') ? ', ' + n('spam') + ' spam' : '') + '. Most came from ' + top + '. ' +
+  (stale ? stale + ' still haven’t heard from anyone.' : 'Everyone who needed a call got one.') + ' <' + CFG.crmPublic + '/reports?days=7|Reports>';
+const byRep = s.byAssignee.filter((r) => r.k).map((r) => '• ' + r.k + ': ' + r.n).join('\\n');
+return [{ json: {
+  slack: { channel: CFG.dailyChannel, text, blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }].concat(byRep ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: 'New leads by rep\\n' + byRep }] }] : []), unfurl_links: false },
+  email: boss ? { sender: { name: 'MDR Lead Hub', email: CFG.sender }, to: [{ email: boss.email, name: boss.name }], subject: 'Leads yesterday: ' + s.total + ' in, ' + n('hot') + ' hot', htmlContent: '<p>' + MSG.esc(text.replace(/ <[^>]+>$/, '')) + '</p><p><a href="' + CFG.crmPublic + '/reports?days=7">Open the reports</a></p>' } : null,
+} }];`, row(4), { lib: true, msg: true }),
+    http('Slack: post to #mdr-daily', row(5), { method: 'POST', url: 'https://slack.com/api/chat.postMessage', cred: 'slack', json: '={{ JSON.stringify($json.slack) }}' }),
+    http('Brevo: email the manager', row(6), { method: 'POST', url: 'https://api.brevo.com/v3/smtp/email', cred: 'brevo', json: "={{ JSON.stringify($('Write the digest').first().json.email) }}", neverError: true }),
+  ];
+  return {
+    name: wfName, nodes,
+    connections: wire([
+      ['Every morning at 8', 'CRM: the last 24 hours'], ['Run it now (demo)', 'CRM: the last 24 hours'], ['CRM: the last 24 hours', 'CRM: still waiting'],
+      ['CRM: still waiting', 'Sheet: team roster'], ['Sheet: team roster', 'Write the digest'], ['Write the digest', 'Slack: post to #mdr-daily'], ['Slack: post to #mdr-daily', 'Brevo: email the manager'],
+    ]),
+  };
+}
+
 /* ---------- push ---------- */
-const WORKFLOWS = [errors, intake];
+const WORKFLOWS = [errors, rosterWf, sync, slackButtons, asanaEvents, followup, digest, intake];
 export { WORKFLOWS };
 
 async function api(method, p, body) {
@@ -374,7 +756,7 @@ async function api(method, p, body) {
   if (!r.ok) throw new Error(`${method} ${p} -> ${r.status} ${t.slice(0, 400)}`);
   return t ? JSON.parse(t) : {};
 }
-const inject = (s) => s.replace(/\{\{(MDR_HMAC_SECRET|SLACK_SIGNING_SECRET)\}\}/g, (_, k) => SECRETS[k]);
+const inject = (s) => s.replace(/\{\{(MDR_HMAC_SECRET|SLACK_SIGNING_SECRET|CRM_API_KEY)\}\}/g, (_, k) => SECRETS[k]);
 
 async function main() {
   fs.mkdirSync(path.join(here, 'workflows'), { recursive: true });
@@ -398,5 +780,21 @@ async function main() {
     console.log((found ? 'updated ' : 'created ') + wf.name + ' ' + id + (activatable ? ' (active)' : ''));
   }
   fs.writeFileSync(path.join(here, 'workflow-ids.json'), JSON.stringify(ids, null, 2));
+
+  // Asana signs its events with a secret it hands over once, at webhook creation, and n8n keeps it in
+  // the workflow's static data. A re-push can clear that, so re-register the webhook when it's gone.
+  const w3 = ids['MDR · Asana updates'];
+  if (w3) {
+    const wf = await api('GET', `/workflows/${w3}`);
+    if (!(wf.staticData && wf.staticData.global && wf.staticData.global.secret)) {
+      const A = { Authorization: `Bearer ${env.ASANA_PAT}`, 'Content-Type': 'application/json' };
+      const list = await (await fetch(`https://app.asana.com/api/1.0/webhooks?workspace=${env.ASANA_WORKSPACE}&resource=${env.ASANA_PROJECT}`, { headers: A })).json();
+      for (const h of list.data || []) await fetch(`https://app.asana.com/api/1.0/webhooks/${h.gid}`, { method: 'DELETE', headers: A });
+      const r = await (await fetch('https://app.asana.com/api/1.0/webhooks', { method: 'POST', headers: A, body: JSON.stringify({ data: {
+        resource: env.ASANA_PROJECT, target: 'https://mdr-hooks.thejobstash.com/webhook/mdr-asana',
+        filters: [{ resource_type: 'task', action: 'changed', fields: ['completed'] }, { resource_type: 'task', action: 'added' }] } }) })).json();
+      console.log(r.data ? `Asana webhook re-registered (${r.data.gid})` : `Asana webhook NOT registered: ${JSON.stringify(r.errors)} (is the tunnel running?)`);
+    }
+  }
 }
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main().catch((e) => { console.error(e.message); process.exit(1); });
