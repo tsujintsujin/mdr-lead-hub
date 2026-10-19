@@ -543,8 +543,6 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.brevo.com/v3/smtp/email",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json) }}",
@@ -557,12 +555,7 @@
           }
         }
       },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "agIoZGO8q9dri3JN",
-          "name": "MDR Brevo email"
-        }
-      }
+      "disabled": true
     },
     {
       "id": "7ed48499-7dc1-3434-bd9f-c0e3d284028e",

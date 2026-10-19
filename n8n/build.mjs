@@ -31,7 +31,6 @@ const SECRETS = { MDR_HMAC_SECRET: env.MDR_HMAC_SECRET, SLACK_SIGNING_SECRET: en
 
 const CRED = {
   crm: { httpHeaderAuth: { id: env.N8N_CRED_CRM, name: 'MDR CRM API' } },
-  brevo: { httpHeaderAuth: { id: env.N8N_CRED_BREVO, name: 'MDR Brevo email' } },
   slack: { slackApi: { id: env.N8N_CRED_SLACK, name: 'MDR Slack bot' } },
   asana: { asanaApi: { id: env.N8N_CRED_ASANA, name: 'MDR Asana' } },
   sheets: { googleSheetsOAuth2Api: { id: env.N8N_CRED_SHEETS, name: 'Google Sheets TheJobStash' } },
@@ -52,7 +51,7 @@ const code = (name, body, pos, { lib = false, msg = false, secrets = false, each
 }, pos);
 const http = (name, pos, o) => node(name, 'n8n-nodes-base.httpRequest', 4.2, {
   method: o.method || 'GET', url: o.url,
-  ...(o.cred === 'crm' || o.cred === 'brevo' ? { authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth' } : {}),
+  ...(o.cred === 'crm' ? { authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth' } : {}),
   ...(o.cred === 'slack' ? { authentication: 'predefinedCredentialType', nodeCredentialType: 'slackApi' } : {}),
   ...(o.cred === 'asana' ? { authentication: 'predefinedCredentialType', nodeCredentialType: 'asanaApi' } : {}),
   ...(o.query ? { sendQuery: true, queryParameters: { parameters: Object.entries(o.query).map(([name, value]) => ({ name, value })) } } : {}),
@@ -60,7 +59,8 @@ const http = (name, pos, o) => node(name, 'n8n-nodes-base.httpRequest', 4.2, {
   ...(o.json ? { sendBody: true, specifyBody: 'json', jsonBody: o.json } : {}),
   ...(o.raw ? { sendBody: true, contentType: 'raw', rawContentType: 'application/json', body: o.raw } : {}),
   options: { timeout: o.timeout || 30000, ...(o.neverError ? { response: { response: { neverError: true } } } : {}) },
-}, pos, { ...(o.cred ? { credentials: CRED[o.cred] } : {}), ...(o.continueOnFail ? { onError: 'continueRegularOutput' } : {}), ...(o.always ? { alwaysOutputData: true } : {}) });
+}, pos, // Email is switched off: Brevo nodes are disabled and carry no credential.
+  { ...(o.cred === 'brevo' ? { disabled: true } : o.cred ? { credentials: CRED[o.cred] } : {}), ...(o.continueOnFail ? { onError: 'continueRegularOutput' } : {}), ...(o.always ? { alwaysOutputData: true } : {}) });
 const iff = (name, expr, pos) => node(name, 'n8n-nodes-base.if', 2.2, {
   conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 }, conditions: [{ id: uuid(name + 'c'), leftValue: expr, rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }], combinator: 'and' },
   options: {},
