@@ -9,7 +9,7 @@ Built overnight 2026-10-11 → 2026-10-12.
    (`sailor-ingest.sock`, `engine.sock`) under `%LOCALAPPDATA%\Docker\run` and
    `%LOCALAPPDATA%\docker-secrets-engine` could not be removed. Both folders
    were renamed aside (`*.stale-<timestamp>`) and Docker started clean.
-2. **Git repo** in `Resumes/WP`, private GitHub repo `tsujintsujin/mdr-lead-hub`,
+2. **Git repo** in `Resumes/WP` (moved to `MDRLeadHub/` on 2026-10-31), private GitHub repo `tsujintsujin/mdr-lead-hub`,
    work on branch `claude/mdr-lead-hub`.
 3. **Secrets** generated into `.env` (gitignored), copy in
    `Credentials/MDR/.env`: MySQL root password, `MDR_HMAC_SECRET` (signs

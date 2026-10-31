@@ -18,7 +18,7 @@ workflow itself.
 ### A1. Start everything
 
 1. Open **Docker Desktop** and wait until it says **Engine running**.
-2. Double-click **`start.cmd`** in `D:\AIO Freelance\Resumes\WP`.
+2. Double-click **`start.cmd`** in `D:\AIO Freelance\MDRLeadHub`.
    It opens these windows. Leave them all open while you record:
    - **n8n**: the automation tool. Its window shows a log.
    - **MDR CRM (port 3090)**: the CRM app (starts minimised).
@@ -31,7 +31,7 @@ workflow itself.
 
 ### A2. Wipe the demo and load the five sample leads
 
-Open a terminal in `D:\AIO Freelance\Resumes\WP` and run these two commands,
+Open a terminal in `D:\AIO Freelance\MDRLeadHub` and run these two commands,
 one after the other:
 
 ```bash

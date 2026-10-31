@@ -62,7 +62,7 @@ for (const [k, name] of Object.entries(CH)) {
   envText = envText.replace(new RegExp(`^SLACK_CH_${k}=.*$`, 'm'), `SLACK_CH_${k}=${c.channel.id}`);
 }
 fs.writeFileSync(envFile, envText);
-const cred = path.resolve(root, '../../Credentials/MDR/.env');
+const cred = path.resolve(root, '../Credentials/MDR/.env');
 if (fs.existsSync(path.dirname(cred))) fs.copyFileSync(envFile, cred);
 log('Slack lead channels recreated empty (old ones archived)');
 

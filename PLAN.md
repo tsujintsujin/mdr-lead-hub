@@ -40,7 +40,7 @@ Justin records a Loom from the finished thing. Everything runs on his PC.
 ```
 
 Decisions (from Justin, 2026-10-11): AI is local Ollama qwen2.5:7b only;
-project lives in `Resumes/WP`; repo `tsujintsujin/mdr-lead-hub` (private);
+project lives in `MDRLeadHub/` (was `Resumes/WP` until 2026-10-31); repo `tsujintsujin/mdr-lead-hub` (private);
 Slack + Asana are his personal empty accounts — Claude creates the app/token
 in Chrome; Google Sheets reuses n8n credential "Google Sheets TheJobStash"
 with a separate new spreadsheet; email via Brevo (sender
