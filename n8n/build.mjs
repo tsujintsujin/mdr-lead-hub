@@ -11,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const env = Object.fromEntries(fs.readFileSync(path.join(root, '.env'), 'utf8').split(/\r?\n/).filter((l) => /^[A-Z0-9_]+=/.test(l)).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 const N8N = 'http://localhost:5678';
-const N8N_KEY = fs.readFileSync(path.resolve(root, '../../Credentials/n8n/api-key.txt'), 'utf8').trim();
+const N8N_KEY = fs.readFileSync(path.resolve(root, '../Credentials/n8n/api-key.txt'), 'utf8').trim();
 const DRY = process.argv.includes('--dry');
 
 const LIB_INTAKE = fs.readFileSync(path.join(here, 'lib/intake.js'), 'utf8').replace(/\nif \(typeof module[^\n]*\n?/, '\n');

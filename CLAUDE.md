@@ -1,4 +1,4 @@
-# CLAUDE.md — MDR Lead Hub (`Resumes/WP`)
+# CLAUDE.md — MDR Lead Hub (`MDRLeadHub/`)
 
 A job-application demo for Marketing Done Right: two WordPress sites (Docker),
 n8n workflows (all the logic), a Next.js + SQLite CRM, wired to Google Sheets,

@@ -273,7 +273,7 @@
         -200
       ],
       "parameters": {
-        "command": "={{ $json.skip ? 'echo skipped' : 'node \"D:/AIO Freelance/Resumes/WP/tools/lh.mjs\" ' + $json.b64 }}"
+        "command": "={{ $json.skip ? 'echo skipped' : 'node \"D:/AIO Freelance/MDRLeadHub/tools/lh.mjs\" ' + $json.b64 }}"
       },
       "onError": "continueRegularOutput",
       "alwaysOutputData": true

@@ -1,7 +1,7 @@
 #!/bin/sh
 # n8n/runs.sh <workflow-name-fragment> [n]  -> last run of that workflow, node by node (debug helper)
 cd "$(dirname "$0")/.."
-K=$(cat ../../Credentials/n8n/api-key.txt)
+K=$(cat ../Credentials/n8n/api-key.txt)
 ID=$(python -c "import json;d=json.load(open('n8n/workflow-ids.json'));print([v for k,v in d.items() if '$1'.lower() in k.lower()][0])")
 E=$(curl -s -H "X-N8N-API-KEY: $K" "localhost:5678/api/v1/executions?workflowId=$ID&limit=${2:-1}" | python -c "import json,sys;print(' '.join(e['id']+':'+e['status'] for e in json.load(sys.stdin)['data']))")
 echo "runs: $E"
