@@ -2,7 +2,7 @@
 /**
  * Plugin Name: MDR Intake
  * Description: Multi-step intake forms that hand each submission to n8n (signed), keep a local copy, retry if n8n is down, and show the visitor their live results.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Justin Masiga
  * Requires PHP: 8.1
  *
@@ -16,7 +16,7 @@
 
 defined('ABSPATH') || exit;
 
-const MDR_VERSION = '1.0.0';
+const MDR_VERSION = '1.0.1';
 const MDR_CPT     = 'mdr_submission';
 
 require_once __DIR__ . '/includes/fields.php';
@@ -70,8 +70,18 @@ function mdr_rest_submit(WP_REST_Request $req) {
     $variant = ($p['variant'] ?? '') === 'grant' ? 'grant' : 'practice';
 
     // Bots: hidden field filled, or the form was "filled" faster than a person can.
-    if (!empty($p['company_url']) || (int) ($p['elapsed_ms'] ?? 0) < 2500) {
-        return new WP_REST_Response(['ok' => true, 'token' => str_repeat('0', 32)], 200); // quiet success, nothing stored
+    // Quiet success for the bot, but kept in wp-admin as "Blocked as bot" so a wrongly blocked person is visible.
+    $elapsed = (int) ($p['elapsed_ms'] ?? 0);
+    if (!empty($p['hp']) || $elapsed < 2500) {
+        $f      = (array) ($p['fields'] ?? []);
+        $who    = sanitize_text_field((string) ($f['business'] ?? $f['org_name'] ?? 'Unknown')) . ' — ' . sanitize_text_field((string) ($f['name'] ?? ''));
+        $reason = !empty($p['hp']) ? 'Hidden trap field filled: ' . substr(sanitize_text_field((string) $p['hp']), 0, 100) : "Sent {$elapsed} ms after the page opened";
+        // ponytail: one post per blocked try; add a cap or cleanup if real bot traffic ever floods it.
+        $post_id = wp_insert_post(['post_type' => MDR_CPT, 'post_status' => 'private', 'post_title' => $who]);
+        update_post_meta($post_id, '_mdr_state', 'blocked');
+        update_post_meta($post_id, '_mdr_last_error', $reason);
+        update_post_meta($post_id, '_mdr_payload', wp_slash(wp_json_encode(['variant' => $variant, 'fields' => $f, 'elapsed_ms' => $elapsed])));
+        return new WP_REST_Response(['ok' => true, 'token' => str_repeat('0', 32)], 200);
     }
 
     // 6 submissions per IP per 10 minutes.
@@ -208,10 +218,10 @@ add_filter('manage_' . MDR_CPT . '_posts_columns', fn($c) => [
 add_action('manage_' . MDR_CPT . '_posts_custom_column', function ($col, $id) {
     if ($col === 'mdr_state') {
         $s = get_post_meta($id, '_mdr_state', true);
-        $labels = ['received' => 'Received', 'forwarded' => 'Sent to n8n', 'queued' => 'Waiting to retry', 'audit' => 'Audit done', 'routed' => 'Routed to a rep', 'failed' => 'Failed'];
+        $labels = ['received' => 'Received', 'forwarded' => 'Sent to n8n', 'queued' => 'Waiting to retry', 'audit' => 'Audit done', 'routed' => 'Routed to a rep', 'failed' => 'Failed', 'blocked' => 'Blocked as bot'];
         echo esc_html($labels[$s] ?? $s);
         $err = get_post_meta($id, '_mdr_last_error', true);
-        if ($err && $s === 'queued') echo '<br><small>' . esc_html($err) . '</small>';
+        if ($err && in_array($s, ['queued', 'blocked'], true)) echo '<br><small>' . esc_html($err) . '</small>';
     }
     if ($col === 'mdr_verdict') echo esc_html(ucwords(str_replace('_', ' ', (string) get_post_meta($id, '_mdr_verdict', true))));
     if ($col === 'mdr_source') {

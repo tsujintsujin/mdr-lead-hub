@@ -2,7 +2,7 @@
 
 .mdr, .mdr-results { --gap: 1.25rem; font: inherit; color: var(--mdr-ink); }
 .mdr *, .mdr-results * { box-sizing: border-box; }
-.mdr-hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.mdr-hp { display: none !important; }
 .mdr-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .mdr-step[hidden], .mdr [hidden], .mdr-results [hidden] { display: none !important; }
 
