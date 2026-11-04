@@ -15,6 +15,7 @@ when one part is missing.
 | 07 | [07-asana.md](07-asana.md) | Asana, project MDR Lead Follow-ups |
 | 08 | [08-brevo-email.md](08-brevo-email.md) | Brevo email (switched off) |
 | 09 | [09-cloudflare-tunnel.md](09-cloudflare-tunnel.md) | The Cloudflare Tunnel |
+| 10 | [10-how-leads-are-rated.md](10-how-leads-are-rated.md) | How a lead is scored, graded and routed (n8n rules + Ollama) |
 
 ---
 
