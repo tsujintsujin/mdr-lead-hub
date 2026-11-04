@@ -175,7 +175,9 @@ function mdr_form(string $variant, array $steps, string $submit_label): void {
     $n = count($steps);
     echo '<form class="mdr mdr--' . esc_attr($variant) . '" data-mdr-form data-variant="' . esc_attr($variant) . '" novalidate>';
     echo '<div class="mdr-progress" aria-hidden="true"><span class="mdr-progress__bar"></span></div>';
-    echo '<div class="mdr-hp" aria-hidden="true"><label>Leave this empty <input type="text" name="company_url" tabindex="-1" autocomplete="off"></label></div>';
+    // Bot trap. display:none and a meaningless name, so browser autofill never fills it
+    // (an off-screen field named company_url was being autofilled with the visitor's website).
+    echo '<div class="mdr-hp" hidden aria-hidden="true"><label>Leave this empty <input type="text" name="mdr_hp" tabindex="-1" autocomplete="off" data-lpignore="true" data-1p-ignore></label></div>';
     foreach ($steps as $i => [$title, $fields]) {
         $s = $i + 1;
         echo '<section class="mdr-step" data-step="' . $s . '"' . ($i ? ' hidden' : '') . ' aria-labelledby="mdr-step-' . $s . '">';
