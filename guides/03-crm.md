@@ -80,7 +80,7 @@ Open any lead from the Leads screen.
 | Header: business, ID, verdict, score, rep, stage | n8n, when it saved the lead |
 | **What the AI made of it** | The model's summary, reasons, suggested opening line, red flags, confidence |
 | **Everything that happened** | The timeline: received, scored, routed, Slack posted, Asana task, every stage change and who made it (from the CRM, Slack or Asana), notes, sync failures |
-| **Contact** | Name, email, phone, website, location, source |
+| **Contact** | Name, email, phone, website, **Came from** (the source n8n worked out), and when the visitor arrived from an ad: **Campaign** (`utm_campaign`), **Ad** (`utm_content`) and **Keyword** (`utm_term`), each only if present, then the rep |
 | **Website checkup** (Site A) or **Eligibility check** (Site B) | Lighthouse speed, page basics, IRS lookup |
 | **What they told us** | Every form answer |
 | **Correct the AI or hand it over** | Stage buttons, a note box, correct the verdict, reassign |
@@ -187,18 +187,22 @@ hours.
 
 ## 10. Try it yourself
 
-1. Open http://localhost:3090, pick **"You are: Ana Reyes"** at the bottom left.
-2. Open **Summit Roofing & Gutters** (MDR-1002).
-3. Press **Contacted**. The timeline gets "CRM: Ana Reyes".
-4. Open Slack `#leads-home-services`: the card now says Contacted, and the
-   thread has a note. Open Asana: the task moved to Contacted. Open the Sheet:
-   the row's Stage changed.
+1. Open http://localhost:3090, pick **"You are: Carla Jimenez"** at the bottom
+   left.
+2. Open **Cleveland Animal Protective League** (MDR-1003, still New).
+3. Press **Contacted**. The timeline gets "CRM: Carla Jimenez".
+4. Open Slack `#leads-nonprofit`: the card now says Contacted, and the thread
+   has a note. Open Asana: the task moved to Contacted. Open the Sheet: the
+   row's Stage changed.
 5. Back in the CRM, correct the verdict to **Warm** with a reason. That reason
    will appear in the AI's instructions for the next lead.
-6. Go to **Pipeline** and drag the card to **Won**. An "Onboarding: Summit
-   Roofing & Gutters" project appears in Asana.
+6. Go to **Pipeline** and drag the card to **Won**. An "Onboarding: Cleveland
+   Animal Protective League" project appears in Asana.
 7. Reset everything after: `node tools/reset-demo.mjs`, then
    `node tools/seed-demo.mjs` to get sample leads back (needs the sites running).
+   The seed tool opens each site in real Chrome (hidden; add `--show` to watch),
+   arriving with the lead's ad tags in the address, and types every answer and
+   clicks Next and Submit like a visitor.
 
 ## 11. When something is wrong
 

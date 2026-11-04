@@ -116,7 +116,10 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               <dt>Email</dt><dd><a href={`mailto:${lead.email}`}>{lead.email}</a></dd>
               {lead.phone && <><dt>Phone</dt><dd><a href={`tel:${lead.phone}`}>{lead.phone}</a></dd></>}
               <dt>Website</dt><dd>{lead.website && <a href={/^https?:/.test(lead.website) ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer">{lead.website}</a>}</dd>
-              <dt>Came from</dt><dd>{lead.source}{lead.tracking?.utm_campaign ? `, campaign “${lead.tracking.utm_campaign}”` : ""}</dd>
+              <dt>Came from</dt><dd>{lead.source}</dd>
+              {lead.tracking?.utm_campaign && <><dt>Campaign</dt><dd>{lead.tracking.utm_campaign}</dd></>}
+              {lead.tracking?.utm_content && <><dt>Ad</dt><dd>{lead.tracking.utm_content}</dd></>}
+              {lead.tracking?.utm_term && <><dt>Keyword</dt><dd>{lead.tracking.utm_term}</dd></>}
               <dt>Rep</dt><dd>{lead.assignee || "Nobody"}</dd>
             </dl>
             <div className="links" style={{ marginTop: 14 }}>

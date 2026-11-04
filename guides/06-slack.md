@@ -15,7 +15,7 @@ uses to post.
 | | |
 |---|---|
 | Workspace | **MDR Demo**, ID `T0C88FA7FA7`, created 12 Oct 2026 |
-| Plan | A trial was running on 4 Nov 2026 ("6 days left in trial"). When it ends the workspace drops to Slack's free plan; the bot keeps working |
+| Plan | A trial was running on 4 Nov 2026 ("6 days left in trial"). When it ends the workspace drops to Slack's free plan: posting, buttons and the bot keep working; messages older than 90 days are hidden |
 | App | **MDR Lead Hub**, ID `A0C8CP9GJB0` |
 | Bot can | `chat:write`, `chat:write.public`, `channels:manage`, `channels:read`, `channels:join`, `users:read` |
 | Button clicks go to | `https://mdr-hooks.thejobstash.com/webhook/mdr-slack` |

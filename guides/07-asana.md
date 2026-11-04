@@ -5,11 +5,17 @@ API; Asana tells n8n about task changes through a webhook that comes in via
 the Cloudflare Tunnel (see [00-how-it-all-connects.md](00-how-it-all-connects.md),
 connections 14 and 15).
 
-> **State on 4 Nov 2026: the Asana → n8n direction is broken.** Asana's list of
-> webhooks for the project is empty, so ticking or dragging a task in Asana
-> changes nothing in the CRM. n8n → Asana (creating, moving, completing tasks)
-> still works. Asana deletes a webhook after its address keeps failing, which
-> fits the tunnel having been off. Section 7 says how to register it again.
+> **4 Nov 2026: the Asana → n8n webhook had disappeared and was registered
+> again** (new ID `1220197613661423`). Asana deletes a webhook after its address
+> keeps failing, which fits the tunnel having been off for a while. Tested
+> afterwards: moving the Summit Roofing task to Booked in Asana set MDR-1002 to
+> Booked in the CRM about a second later ("Asana: Justin Masiga" on the
+> timeline), and Slack and the Sheet followed. Section 7 says how to check it
+> and register it again if it vanishes.
+>
+> **Plan:** the paid Asana Advanced trial ended on 26 Oct 2026; the workspace is
+> on the free Personal plan. Everything the demo uses (tasks, board columns,
+> due dates, comments, projects, the API, webhooks) works on it.
 
 ---
 
@@ -131,7 +137,7 @@ and n8n sees the lead is already there.
 | Made at | https://app.asana.com/0/my-apps |
 | In `.env` | `ASANA_PAT` |
 | In n8n | Credential **MDR Asana** |
-| Other IDs in `.env` (not secret) | `ASANA_WORKSPACE`, `ASANA_PROJECT`, `ASANA_USER`, `ASANA_SEC_HOT`, `ASANA_SEC_TALK`, `ASANA_SEC_CONTACTED`, `ASANA_SEC_BOOKED`, `ASANA_WEBHOOK` (the old webhook's ID, no longer valid) |
+| Other IDs in `.env` (not secret) | `ASANA_WORKSPACE`, `ASANA_PROJECT`, `ASANA_USER`, `ASANA_SEC_HOT`, `ASANA_SEC_TALK`, `ASANA_SEC_CONTACTED`, `ASANA_SEC_BOOKED`, `ASANA_WEBHOOK` (`1220197613661423` since 4 Nov 2026) |
 
 If you make a new token: update `.env`, the master copy in
 `D:\AIO Freelance\Credentials\MDR\.env`, and the **MDR Asana** credential in
@@ -147,8 +153,13 @@ n8n.
    the Contacted column and gets a comment.
 4. Mark it **Won** in the CRM: an "Onboarding: ..." project appears with 6
    dated tasks.
-5. (Once the webhook is back) drag a New lead's task to **Booked** in Asana:
-   the CRM stage, the Slack card and the Sheet follow.
+5. Move a New lead's task to **Booked** in Asana (drag it, or open the task and
+   change its section next to "MDR Lead Follow-ups"): the CRM stage, the Slack
+   card and the Sheet follow.
+
+**Known gap:** a task is only created when a lead first arrives as Hot or Needs a
+conversation. A lead that arrives as Warm or Not a fit and is later moved to
+Contacted or Booked never gets a task.
 
 ## 7. Registering the webhook again
 
@@ -159,7 +170,7 @@ won't create the webhook if nothing answers). Then one of:
   **Asana updates** workflow still holds a webhook secret; if not, it deletes any
   old webhook and registers a new one. It only does this when the stored secret
   is missing, so if the secret is still stored but Asana deleted the webhook (as
-  now), it won't notice. In that case:
+  happened before 4 Nov 2026), it won't notice. In that case:
 - **Directly:** register a webhook on resource `1219384275693582` with target
   `https://mdr-hooks.thejobstash.com/webhook/mdr-asana` and filters
   `task changed completed` and `task added`, through
@@ -167,13 +178,15 @@ won't create the webhook if nothing answers). Then one of:
   in `n8n/build.mjs`, at the end).
 
 Check it worked: `GET https://app.asana.com/api/1.0/webhooks?workspace=1219383696818202&resource=1219384275693582`
-with the token should list one webhook with `active: true`.
+with the token should list one webhook with `active: true`. Then put its ID in
+`ASANA_WEBHOOK` in `.env` and in `D:\AIO Freelance\Credentials\MDR\.env`.
 
 ## 8. When something is wrong
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Ticking/dragging in Asana changes nothing in the CRM | No webhook (the case on 4 Nov 2026), tunnel off, or n8n off | Section 7 |
+| Ticking/dragging in Asana changes nothing in the CRM | The webhook vanished (happened before 4 Nov 2026), tunnel off, or n8n off | Section 7 |
+| "Your trial has ended" popup with only "Select your plan" | The paid trial ended | Click it, then the small link "Downgrade to a free Asana Personal plan" |
 | No task for a new lead | It was Warm, Not a fit, Spam or a duplicate (by design) | Check the verdict in the CRM |
 | Intake run fails at **Asana: create follow-up task** | Token revoked or expired | New token (section 5) |
 | No onboarding project after Won | The Sync run failed at **Asana: create onboarding project** | Open the Sync execution in n8n |
