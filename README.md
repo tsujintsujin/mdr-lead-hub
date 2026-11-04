@@ -174,7 +174,7 @@ Run these in a terminal opened in this folder.
 | Command | What it does |
 |---|---|
 | `node tools/reset-demo.mjs` | Wipes the demo clean: the CRM, the Sheet's Leads tab, the Asana tasks and onboarding projects, the WordPress form entries, and the Slack lead channels. Emails already in Gmail stay. |
-| `node tools/seed-demo.mjs` | Sends five sample leads through the real forms (takes about 5 minutes). |
+| `node tools/seed-demo.mjs` | Fills in the real forms five times in Chrome, like a visitor arriving from an ad or a search (takes about 5 minutes). Add `--show` to watch it. |
 | `node n8n/test.js` | Checks the scoring, routing and message logic without sending anything. |
 | `node n8n/build.mjs` | Rebuilds every n8n workflow from the code in `n8n/` and uploads it to n8n. |
 | `MSYS_NO_PATHCONV=1 docker compose run --rm cli sh /repo/setup.sh` | Rebuilds both WordPress sites from scratch. |
